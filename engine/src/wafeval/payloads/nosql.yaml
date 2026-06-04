@@ -1,0 +1,187 @@
+# NoSQL (MongoDB) injection — 25 entries.
+# WAF-view only: DVWA + Juice Shop don't have a MongoDB sink, so the payload
+# never exploits a backend. The engine sends it to a reflective search
+# endpoint so each WAF gets a chance to match the JSON operator shape.
+# Trigger = status 200 (request forwarded — the WAF didn't block). The
+# analyzer's waf_view lens then gives bypass rate per WAF.
+#
+# Sources:
+#   - PayloadsAllTheThings / NoSQL Injection
+#   - PortSwigger Web Security Academy
+#   - HackTricks / Intigriti blog
+#   - OWASP WSTG §4.5.10 (NoSQL)
+
+- id: nosql-ne-null
+  class: nosql
+  payload: '{"$ne": null}'
+  trigger: &T200 { kind: status, code: 200 }
+  cwe: CWE-943
+  source: "PortSwigger — login bypass via $ne"
+
+- id: nosql-ne-foo
+  class: nosql
+  payload: '{"username":{"$ne":"x"},"password":{"$ne":"x"}}'
+  trigger: *T200
+  cwe: CWE-943
+  source: "PayloadsAllTheThings — JSON auth bypass"
+
+- id: nosql-gt-undefined
+  class: nosql
+  payload: '{"$gt": ""}'
+  trigger: *T200
+  cwe: CWE-943
+  source: "MongoDB greater-than tautology"
+
+- id: nosql-lt-zzz
+  class: nosql
+  payload: '{"$lt": "zzz"}'
+  trigger: *T200
+  cwe: CWE-943
+  source: "Less-than tautology — string comparison"
+
+- id: nosql-regex-wildcard
+  class: nosql
+  payload: '{"$regex":".*"}'
+  trigger: *T200
+  cwe: CWE-943
+  source: "PayloadsAllTheThings — $regex wildcard"
+
+- id: nosql-regex-prefix
+  class: nosql
+  payload: '{"username":{"$regex":"^adm"}}'
+  trigger: *T200
+  cwe: CWE-943
+  source: "HackTricks — regex prefix enum"
+
+- id: nosql-regex-anchored
+  class: nosql
+  payload: '{"username":{"$regex":"^admin$","$options":"i"}}'
+  trigger: *T200
+  cwe: CWE-943
+  source: "Case-insensitive anchored regex"
+
+- id: nosql-where-true
+  class: nosql
+  payload: '{"$where":"this.password.length>0"}'
+  trigger: *T200
+  cwe: CWE-943
+  source: "PayloadsAllTheThings — $where JS code"
+
+- id: nosql-where-sleep
+  class: nosql
+  payload: '{"$where":"sleep(0)||true"}'
+  trigger: *T200
+  cwe: CWE-943
+  source: "PortSwigger — server-side sleep oracle"
+
+- id: nosql-where-eval
+  class: nosql
+  payload: '{"$where":"function(){return true}"}'
+  trigger: *T200
+  cwe: CWE-943
+  source: "$where JS function — code injection"
+
+- id: nosql-json-regex-pass
+  class: nosql
+  payload: '{"username":"admin","password":{"$regex":".*"}}'
+  trigger: *T200
+  cwe: CWE-943
+  source: "Acunetix vuln guide — regex over password"
+
+- id: nosql-in-array
+  class: nosql
+  payload: '{"role":{"$in":["admin","root"]}}'
+  trigger: *T200
+  cwe: CWE-943
+  source: "PayloadsAllTheThings — $in array"
+
+- id: nosql-nin-array
+  class: nosql
+  payload: '{"role":{"$nin":["guest"]}}'
+  trigger: *T200
+  cwe: CWE-943
+  source: "$nin (NOT IN) array — privilege enumeration"
+
+- id: nosql-exists
+  class: nosql
+  payload: '{"apiKey":{"$exists":true}}'
+  trigger: *T200
+  cwe: CWE-943
+  source: "Web-cipher blog — $exists enum"
+
+- id: nosql-not-exists
+  class: nosql
+  payload: '{"deleted":{"$exists":false}}'
+  trigger: *T200
+  cwe: CWE-943
+  source: "Soft-delete bypass via $exists"
+
+- id: nosql-or-array
+  class: nosql
+  payload: '{"$or":[{"a":1},{"b":{"$ne":null}}]}'
+  trigger: *T200
+  cwe: CWE-943
+  source: "PayloadsAllTheThings — $or compound"
+
+- id: nosql-and-array
+  class: nosql
+  payload: '{"$and":[{"username":{"$exists":true}},{"role":{"$ne":"guest"}}]}'
+  trigger: *T200
+  cwe: CWE-943
+  source: "Compound $and — auth bypass"
+
+- id: nosql-url-ne
+  class: nosql
+  payload: "username[$ne]=x&password[$ne]=x"
+  trigger: *T200
+  cwe: CWE-943
+  source: "PayloadsAllTheThings — form-encoded operator"
+
+- id: nosql-url-regex
+  class: nosql
+  payload: "q[$regex]=.*"
+  trigger: *T200
+  cwe: CWE-943
+  source: "PayloadsAllTheThings — URL-form regex"
+
+- id: nosql-url-where
+  class: nosql
+  payload: "search[$where]=this.password.length>0"
+  trigger: *T200
+  cwe: CWE-943
+  source: "URL-form $where — express-mongoose ingest"
+
+- id: nosql-projection-leak
+  class: nosql
+  payload: '{"username":"admin"},{"password":1,"_id":0'
+  trigger: *T200
+  cwe: CWE-943
+  source: "Intigriti blog — projection abuse"
+
+- id: nosql-where-js-error
+  class: nosql
+  payload: "';return true;//"
+  trigger: *T200
+  cwe: CWE-943
+  source: "$where JS injection via quote-break"
+
+- id: nosql-mongoshell-cmd
+  class: nosql
+  payload: '{"$function":{"body":"function(){return true}","args":[],"lang":"js"}}'
+  trigger: *T200
+  cwe: CWE-943
+  source: "MongoDB 4.4+ $function aggregation operator"
+
+- id: nosql-mapreduce
+  class: nosql
+  payload: '{"mapReduce":"users","map":"function(){emit(this._id,this)}","reduce":"function(k,v){return v}","out":{"inline":1}}'
+  trigger: *T200
+  cwe: CWE-943
+  source: "Legacy mapReduce JS code-execution"
+
+- id: nosql-aggregation-lookup
+  class: nosql
+  payload: '{"$lookup":{"from":"users","localField":"_id","foreignField":"_id","as":"u"}}'
+  trigger: *T200
+  cwe: CWE-943
+  source: "Aggregation $lookup — cross-collection leak"

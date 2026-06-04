@@ -1,0 +1,178 @@
+# LDAP injection — 25 entries. WAF-view only (no LDAP sink in the lab apps).
+# Sources: PayloadsAllTheThings/LDAP Injection, PortSwigger Web Security Academy,
+# OWASP WSTG §4.6, Microsoft AD documentation.
+
+- id: ldap-wildcard
+  class: ldap
+  payload: "*"
+  trigger: &T200 { kind: status, code: 200 }
+  cwe: CWE-90
+  source: "Wildcard — returns all entries"
+
+- id: ldap-or-wildcard
+  class: ldap
+  payload: "*)(uid=*))(|(uid=*"
+  trigger: *T200
+  cwe: CWE-90
+  source: "PayloadsAllTheThings — OR injection"
+
+- id: ldap-admin-comment
+  class: ldap
+  payload: "admin)(cn=*))"
+  trigger: *T200
+  cwe: CWE-90
+  source: "PayloadsAllTheThings — comment injection"
+
+- id: ldap-and-tautology
+  class: ldap
+  payload: "*)(uid=*))(&(uid=*"
+  trigger: *T200
+  cwe: CWE-90
+  source: "PayloadsAllTheThings — AND tautology"
+
+- id: ldap-password-null
+  class: ldap
+  payload: "*)(&(objectClass=user)(userPassword=*"
+  trigger: *T200
+  cwe: CWE-90
+  source: "LDAP filter smuggling"
+
+- id: ldap-name-sink
+  class: ldap
+  payload: "admin*"
+  trigger: *T200
+  cwe: CWE-90
+  source: "Prefix wildcard — directory enum"
+
+- id: ldap-blind-truth
+  class: ldap
+  payload: "admin)(&(1=1))"
+  trigger: *T200
+  cwe: CWE-90
+  source: "Blind boolean — always true"
+
+- id: ldap-blind-falsify
+  class: ldap
+  payload: "admin)(!(&(1=1))"
+  trigger: *T200
+  cwe: CWE-90
+  source: "Blind boolean — negation"
+
+- id: ldap-samaccount
+  class: ldap
+  payload: "*)(sAMAccountName=*"
+  trigger: *T200
+  cwe: CWE-90
+  source: "Active Directory — sAMAccountName enum"
+
+- id: ldap-useraccountcontrol
+  class: ldap
+  payload: "*)(userAccountControl:1.2.840.113556.1.4.803:=2"
+  trigger: *T200
+  cwe: CWE-90
+  source: "AD — matching rule OID, disabled accounts"
+
+- id: ldap-useraccountcontrol-trusted
+  class: ldap
+  payload: "*)(userAccountControl:1.2.840.113556.1.4.803:=524288"
+  trigger: *T200
+  cwe: CWE-90
+  source: "AD — TRUSTED_FOR_DELEGATION matching rule"
+
+- id: ldap-double-paren
+  class: ldap
+  payload: "))(|(uid=*"
+  trigger: *T200
+  cwe: CWE-90
+  source: "Filter escape with nested close"
+
+- id: ldap-dn-injection
+  class: ldap
+  payload: "admin,ou=users,dc=test,dc=com"
+  trigger: *T200
+  cwe: CWE-90
+  source: "DN injection — parser boundary confusion"
+
+- id: ldap-suffix-wildcard
+  class: ldap
+  payload: "*admin"
+  trigger: *T200
+  cwe: CWE-90
+  source: "Suffix wildcard — partial-match enum"
+
+- id: ldap-substring-search
+  class: ldap
+  payload: "*adm*"
+  trigger: *T200
+  cwe: CWE-90
+  source: "Bilateral wildcard — substring search"
+
+- id: ldap-objectclass-or
+  class: ldap
+  payload: "*)(|(objectClass=user)(objectClass=group)"
+  trigger: *T200
+  cwe: CWE-90
+  source: "OWASP WSTG — objectClass enumeration"
+
+- id: ldap-empty-password
+  class: ldap
+  payload: ")(cn=*))%00"
+  trigger: *T200
+  cwe: CWE-90
+  source: "Null-byte truncation in filter"
+
+- id: ldap-unicode-paren
+  class: ldap
+  payload: "admin)(cn=*))"
+  trigger: *T200
+  cwe: CWE-90
+  source: "Unicode-escaped close paren"
+
+- id: ldap-percent-encoded
+  class: ldap
+  payload: "*%29%28cn=*"
+  trigger: *T200
+  cwe: CWE-90
+  source: "URL-encoded filter metacharacters"
+
+- id: ldap-not-anything
+  class: ldap
+  payload: "*)(!(cn=nonexistent"
+  trigger: *T200
+  cwe: CWE-90
+  source: "NOT-injection for boolean inference"
+
+- id: ldap-attribute-leak
+  class: ldap
+  payload: "*)(|(mail=*)(telephoneNumber=*)"
+  trigger: *T200
+  cwe: CWE-90
+  source: "Multi-attr enum — directory PII leak"
+
+- id: ldap-altsec-objsid
+  class: ldap
+  payload: "*)(altSecurityIdentities=*"
+  trigger: *T200
+  cwe: CWE-90
+  source: "AD privilege-escalation — alt-security mapping"
+
+- id: ldap-anr-search
+  class: ldap
+  payload: "*)(anr=admin"
+  trigger: *T200
+  cwe: CWE-90
+  source: "AD ambiguous-name resolution"
+
+- id: ldap-stored-password
+  class: ldap
+  payload: "*)(unicodePwd=*"
+  trigger: *T200
+  cwe: CWE-90
+  source: "AD password-attribute fishing"
+
+- id: ldap-extensible-match
+  class: ldap
+  payload: "*)(uid:caseExactMatch:=admin"
+  trigger: *T200
+  cwe: CWE-90
+  source: "RFC 4515 extensibleMatch — case-sensitive enum"

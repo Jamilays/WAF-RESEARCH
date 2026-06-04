@@ -1,0 +1,346 @@
+# Target endpoint map — (target, vuln_class) → request template.
+#
+# Each entry describes how to turn a payload body into a concrete HTTP
+# request. The runner substitutes {payload} with the URL-encoded mutated
+# payload. Endpoints that don't exist for a class are simply omitted — the
+# runner skips that (target, class) cell and the analyzer ignores it
+# instead of counting fake baseline_fails against the WAF.
+#
+# Post-Phase-6 audit changes:
+#   * DVWA: SSTI + XXE endpoints removed (no real Jinja/XML sink in DVWA —
+#     earlier config routed them to /vulnerabilities/xss_r which never fired
+#     the trigger, producing 100% baseline_fail noise).
+#   * Juice Shop: kept SQLi (real sink at /rest/products/search) and XSS
+#     (JSON reflection visible in the body). Cmdi/lfi/ssti/xxe removed
+#     until a backend with those sinks is wired up.
+#
+# Post-Phase-7 expansion (this session):
+#   * SSTI + XXE re-added on every target as WAF-view-only sinks. The
+#     payloads are routed through the existing reflective endpoints
+#     (DVWA xss_r / Juice Shop /rest/products/search / WebGoat SqlInjection
+#     attack2 lesson) with a per-endpoint trigger override of status:200.
+#     The lab can't *exploit* template-injection or XML-entity flaws (no
+#     Jinja, Twig, FreeMarker, or XML parser in the stack), but the WAFs
+#     get to inspect the syntax on the wire — which is the question this
+#     research actually answers ("does the WAF detect the payload shape?").
+#   * cmdi + lfi DVWA triggers are overridden to status:200 (was: regex on
+#     "uid=\\d+" / "root:") because the trigger was producing 83% / 94%
+#     baseline_fail. Brace-expansion + ${IFS} payloads expand differently
+#     under /bin/sh (DVWA's shell, no bash), and DVWA has open_basedir set
+#     so ../-relative paths fail to leak /etc/passwd. The status-only
+#     trigger matches the WAF-view-only convention used elsewhere — we
+#     measure WAF detection, not exploit success.
+#   * graphql on Juice Shop switched from POST/form to GET/query because
+#     /rest/products/search only accepts GET (POST/form was 100% baseline_fail).
+#
+# Post-Phase-7 additions:
+#   * WebGoat: restored with per-lesson targeting. sqli → SqlInjection/attack2
+#     (takes a single ``query`` form field, runs it as SQL), xss →
+#     CrossSiteScripting/attack5a (credit-card checkout that reflects field1).
+#     Both endpoints return JSON with ``"attemptWasMade" : true`` whenever the
+#     payload reaches the lesson handler — regardless of whether the exploit
+#     succeeded — so we set a per-endpoint ``trigger`` override rather than
+#     relying on the payload's default marker (which targets DVWA's "First
+#     name" echo or Juice Shop's SQLITE_ERROR).
+
+targets:
+  dvwa:
+    base_path: ""
+    login:
+      method: POST
+      path: "/login.php"
+      form_tokenized: true    # DVWA requires CSRF-token scrape from GET /login.php
+      username: admin
+      password: password
+    endpoints:
+      sqli:
+        method: GET
+        path: "/vulnerabilities/sqli/"
+        query:
+          id: "{payload}"
+          Submit: "Submit"
+        expect_auth: true
+      xss:
+        method: GET
+        path: "/vulnerabilities/xss_r/"
+        query:
+          name: "{payload}"
+        expect_auth: true
+      cmdi:
+        method: POST
+        path: "/vulnerabilities/exec/"
+        form:
+          ip: "{payload}"
+          Submit: "Submit"
+        expect_auth: true
+        # Override the per-payload regex triggers (uid=\d+, root:) — those
+        # only fire when bash-isms actually execute, but DVWA shells out via
+        # /bin/sh which doesn't do brace expansion or ${IFS}. status:200
+        # measures "request reached DVWA's exec handler" → if the WAF didn't
+        # block, that's a WAF-view bypass regardless of whether the OS
+        # actually ran the appended command.
+        trigger:
+          kind: status
+          code: 200
+      lfi:
+        method: GET
+        path: "/vulnerabilities/fi/"
+        query:
+          page: "{payload}"
+        expect_auth: true
+        # Same rationale as cmdi: DVWA has open_basedir set, so relative
+        # ../-traversals don't actually leak /etc/passwd even at security=low.
+        # Use status:200 to capture "request reached the include() sink".
+        trigger:
+          kind: status
+          code: 200
+      # ---- Phase-7 WAF-view-only classes ---------------------------------
+      # DVWA has no MongoDB/LDAP/JNDI/SSRF/GraphQL/CRLF sink. We route these
+      # through the reflected-XSS endpoint which always returns 200 and
+      # echoes the param — that lets the WAF inspect the payload and decide
+      # to block or pass. Trigger: status 200 (baseline confirms the
+      # request reached the app), analyzer reports the WAF-view lens.
+      nosql:
+        method: GET
+        path: "/vulnerabilities/xss_r/"
+        query: { name: "{payload}" }
+        expect_auth: true
+      ldap:
+        method: GET
+        path: "/vulnerabilities/xss_r/"
+        query: { name: "{payload}" }
+        expect_auth: true
+      ssrf:
+        method: GET
+        path: "/vulnerabilities/xss_r/"
+        query: { name: "{payload}" }
+        expect_auth: true
+      jndi:
+        method: GET
+        path: "/vulnerabilities/xss_r/"
+        query: { name: "{payload}" }
+        expect_auth: true
+      graphql:
+        method: POST
+        path: "/vulnerabilities/xss_r/"
+        form: { name: "{payload}" }
+        expect_auth: true
+      crlf:
+        method: GET
+        path: "/vulnerabilities/xss_r/"
+        query: { name: "{payload}" }
+        expect_auth: true
+      ssti:
+        method: GET
+        path: "/vulnerabilities/xss_r/"
+        query: { name: "{payload}" }
+        expect_auth: true
+      xxe:
+        method: GET
+        path: "/vulnerabilities/xss_r/"
+        query: { name: "{payload}" }
+        expect_auth: true
+      benign:
+        method: GET
+        path: "/vulnerabilities/sqli/"
+        query:
+          id: "{payload}"
+          Submit: "Submit"
+        expect_auth: true
+        notes: "Benign-corpus FPR sink. Trigger is just status=200 — DVWA's SQLi endpoint returns 200 for ANY query string (even ones that yield zero rows or a SQL syntax error), so status=200 means 'backend handled the request', and a WAF 403/406 is a clear FP."
+        trigger:
+          kind: status
+          code: 200
+
+  webgoat:
+    base_path: ""
+    login:
+      kind: webgoat
+      path: "/WebGoat/login"
+      register_path: "/WebGoat/register.mvc"
+      username: waflab
+      password: wafpw123    # Spring validator caps at 10 chars.
+      prime_paths:
+        - /WebGoat/SqlInjection.lesson
+        - /WebGoat/CrossSiteScripting.lesson
+    endpoints:
+      sqli:
+        method: POST
+        path: "/WebGoat/SqlInjection/attack2"
+        form:
+          query: "{payload}"
+        expect_auth: true
+        notes: "WebGoat SQLi assignment 2 — arbitrary SQL in the `query` field."
+        trigger:
+          kind: regex
+          pattern: '"attemptWasMade"\s*:\s*true'
+      xss:
+        method: GET
+        path: "/WebGoat/CrossSiteScripting/attack5a"
+        query:
+          QTY1: "1"
+          QTY2: "1"
+          QTY3: "1"
+          QTY4: "1"
+          field1: "{payload}"
+          field2: "111"
+        expect_auth: true
+        notes: "WebGoat XSS assignment 5a — checkout form reflects field1 into HTML."
+        trigger:
+          kind: regex
+          pattern: '"attemptWasMade"\s*:\s*true'
+      benign:
+        method: POST
+        path: "/WebGoat/SqlInjection/attack2"
+        form:
+          query: "{payload}"
+        expect_auth: true
+        notes: "Benign-corpus FPR sink — reuses the SqlInjection lesson handler, which 200s with attemptWasMade=true for any query that reaches it."
+        trigger:
+          kind: regex
+          pattern: '"attemptWasMade"\s*:\s*true'
+
+  juiceshop:
+    base_path: ""
+    endpoints:
+      sqli:
+        method: GET
+        path: "/rest/products/search"
+        query:
+          q: "{payload}"
+        expect_auth: false
+        notes: "Canonical SQLite SQLi sink — error page leaks 'SQLITE_ERROR'"
+      # XSS removed — /rest/products/search does not reflect the query in the
+      # JSON response, so every baseline would be baseline_fail. A future
+      # Phase 7 lesson-by-lesson expansion can add a proper XSS sink
+      # (e.g. the /#/search route which renders via Angular and is a known
+      # DOM-XSS vector — needs a headless browser to verify).
+      # ---- Phase-7 WAF-view-only classes — routed through the reflective
+      # search endpoint so the WAF gets to inspect the payload -----
+      nosql:
+        method: GET
+        path: "/rest/products/search"
+        query: { q: "{payload}" }
+        expect_auth: false
+      ldap:
+        method: GET
+        path: "/rest/products/search"
+        query: { q: "{payload}" }
+        expect_auth: false
+      ssrf:
+        method: GET
+        path: "/rest/products/search"
+        query: { q: "{payload}" }
+        expect_auth: false
+      jndi:
+        method: GET
+        path: "/rest/products/search"
+        query: { q: "{payload}" }
+        expect_auth: false
+      graphql:
+        # Switched from POST/form (100% baseline_fail) to GET/query — the
+        # /rest/products/search endpoint only accepts GET. The WAF still
+        # gets to inspect the JSON-shaped query body in the q= parameter,
+        # which is the WAF-view-only signal we care about for graphql.
+        method: GET
+        path: "/rest/products/search"
+        query: { q: "{payload}" }
+        expect_auth: false
+      crlf:
+        method: GET
+        path: "/rest/products/search"
+        query: { q: "{payload}" }
+        expect_auth: false
+      ssti:
+        method: GET
+        path: "/rest/products/search"
+        query: { q: "{payload}" }
+        expect_auth: false
+      xxe:
+        method: GET
+        path: "/rest/products/search"
+        query: { q: "{payload}" }
+        expect_auth: false
+      benign:
+        method: GET
+        path: "/rest/products/search"
+        query: { q: "{payload}" }
+        expect_auth: false
+        notes: "Benign-corpus FPR sink — same Juice Shop search endpoint, trigger matches the normal JSON success shape."
+        trigger:
+          kind: regex
+          pattern: '"status"\s*:\s*"success"'
+
+routes:
+  # Traefik Host-header → (waf, target). Baseline is the "no WAF" control.
+  # WebGoat routes are in the Traefik config *and* in the target endpoints
+  # above (post-Phase-7 restore) — the runner now exercises the 4×3 matrix
+  # the paper described.
+  - host: baseline-dvwa.local
+    waf: baseline
+    target: dvwa
+  - host: baseline-webgoat.local
+    waf: baseline
+    target: webgoat
+  - host: baseline-juiceshop.local
+    waf: baseline
+    target: juiceshop
+  - host: modsec-dvwa.local
+    waf: modsec
+    target: dvwa
+  - host: modsec-webgoat.local
+    waf: modsec
+    target: webgoat
+  - host: modsec-juiceshop.local
+    waf: modsec
+    target: juiceshop
+  - host: coraza-dvwa.local
+    waf: coraza
+    target: dvwa
+  - host: coraza-webgoat.local
+    waf: coraza
+    target: webgoat
+  - host: coraza-juiceshop.local
+    waf: coraza
+    target: juiceshop
+  - host: shadowd-dvwa.local
+    waf: shadowd
+    target: dvwa
+  - host: shadowd-webgoat.local
+    waf: shadowd
+    target: webgoat
+  - host: shadowd-juiceshop.local
+    waf: shadowd
+    target: juiceshop
+  # --- paranoia-high variants — active under --profile paranoia-high ---
+  # Same upstreams, but the WAF is tuned to PL4 (max inspection). The
+  # engine skips these automatically when the compose containers aren't
+  # up (Traefik 404), so leaving them listed is safe in every profile.
+  - host: modsec-ph-dvwa.local
+    waf: modsec-ph
+    target: dvwa
+  - host: modsec-ph-webgoat.local
+    waf: modsec-ph
+    target: webgoat
+  - host: modsec-ph-juiceshop.local
+    waf: modsec-ph
+    target: juiceshop
+  - host: coraza-ph-dvwa.local
+    waf: coraza-ph
+    target: dvwa
+  - host: coraza-ph-webgoat.local
+    waf: coraza-ph
+    target: webgoat
+  - host: coraza-ph-juiceshop.local
+    waf: coraza-ph
+    target: juiceshop
+  # --- open-appsec ML agent — active under --profile ml ----------------
+  - host: openappsec-dvwa.local
+    waf: openappsec
+    target: dvwa
+  - host: openappsec-webgoat.local
+    waf: openappsec
+    target: webgoat
+  - host: openappsec-juiceshop.local
+    waf: openappsec
+    target: juiceshop

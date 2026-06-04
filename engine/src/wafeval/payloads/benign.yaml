@@ -1,0 +1,118 @@
+# Benign-traffic corpus for false-positive-rate measurement.
+#
+# Paired with the ``noop`` mutator so each entry lands on the WAF byte-
+# identical to what a real user would send. The analyzer treats a
+# BLOCKED verdict on a benign run as a *false positive* (see
+# wafeval.analyzer.ladder's FPR overlay).
+#
+# Two categories of entry — both stay well inside the lab's
+# destructive-pattern allow-list so no entry trips the Payload loader's
+# safety check:
+#
+#   1. **Clear-text realistic traffic.** Plain English, emails,
+#      usernames, phone numbers. Any WAF that blocks these is
+#      over-tuned.
+#   2. **Near-signal traffic.** Natural phrases that *contain* SQL / LDAP
+#      / XSS keywords by coincidence ("OR MAYBE", "SELECT the best
+#      option"). These are the realistic FP hotspots for rule-based
+#      WAFs at PL3+.
+#
+# Trigger: every entry uses ``status: 200`` as the payload-level trigger
+# — the endpoint's trigger override in targets.yaml carries the
+# target-specific success signature (DVWA's "First name:" echo, Juice
+# Shop's ``"status":"success"`` JSON, WebGoat's ``attemptWasMade``).
+
+# ==== clear-text realistic traffic ====
+- id: benign-search-001
+  class: benign
+  payload: "apple juice"
+  trigger: &T
+    kind: status
+    code: 200
+  source: common product-search term
+  notes: plain alphabetic, should pass every reasonable WAF
+
+- id: benign-search-002
+  class: benign
+  payload: "banana"
+  trigger: *T
+  source: single-word search
+
+- id: benign-username-001
+  class: benign
+  payload: "alice"
+  trigger: *T
+  source: common username
+
+- id: benign-username-002
+  class: benign
+  payload: "admin"
+  trigger: *T
+  notes: triggers CRS anomaly scoring on some profiles but should never hard-block
+
+- id: benign-numeric-001
+  class: benign
+  payload: "42"
+  trigger: *T
+  source: numeric id
+
+- id: benign-prose-001
+  class: benign
+  payload: "quick brown fox"
+  trigger: *T
+  source: pangram-ish benign multi-word
+
+- id: benign-email-001
+  class: benign
+  payload: "alice@example.com"
+  trigger: *T
+  source: RFC-5321 email — apostrophe-free
+
+- id: benign-phone-001
+  class: benign
+  payload: "+1-555-0100"
+  trigger: *T
+  source: E.164 phone format
+
+- id: benign-unicode-001
+  class: benign
+  payload: "café espresso"
+  trigger: *T
+  source: latin-1 diacritic in a natural phrase
+
+- id: benign-pangram-001
+  class: benign
+  payload: "The quick brown fox jumps over the lazy dog"
+  trigger: *T
+  source: pangram — 43 chars of plain English
+
+# ==== near-signal traffic (natural English that shares vocabulary with attacks) ====
+- id: benign-apostrophe-001
+  class: benign
+  payload: "it's a test"
+  trigger: *T
+  notes: genuine apostrophe — PL3+ CRS is prone to flagging this as SQLi
+
+- id: benign-apostrophe-002
+  class: benign
+  payload: "d'artagnan"
+  trigger: *T
+  notes: French proper noun with apostrophe
+
+- id: benign-nested-quote-001
+  class: benign
+  payload: 'a "good" review'
+  trigger: *T
+  notes: double-quotes inside free text — PL4 CRS commonly over-blocks
+
+- id: benign-sql-keyword-001
+  class: benign
+  payload: "OR MAYBE"
+  trigger: *T
+  notes: natural English containing the SQL OR keyword — classic FP hotspot
+
+- id: benign-sql-keyword-002
+  class: benign
+  payload: "SELECT the best option"
+  trigger: *T
+  notes: natural English starting with a SQL keyword

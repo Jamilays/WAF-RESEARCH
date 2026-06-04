@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "wafeval"
+version = "0.3.0"
+description = "WAF Evasion Lab — mutation engine, analyzer, reporter, dashboard API (Phases 3–6)"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "waf-evasion-lab" }]
+dependencies = [
+    "httpx[http2]>=0.27,<1.0",
+    "pydantic>=2.7,<3.0",
+    "pyyaml>=6.0,<7.0",
+    "structlog>=24.1,<25.0",
+    "anyio>=4.3,<5.0",
+    "pandas>=2.2,<3.0",
+    "matplotlib>=3.8,<4.0",
+    "seaborn>=0.13,<1.0",
+    "fastapi>=0.115,<1.0",
+    "uvicorn[standard]>=0.30,<1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.1,<9.0",
+    "pytest-asyncio>=0.23,<1.0",
+    "respx>=0.21,<1.0",
+]
+
+[project.scripts]
+wafeval = "wafeval.cli:main"
+wafeval-api = "wafeval.api.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/wafeval"]
+
+[tool.hatch.build.targets.wheel.force-include]
+# Hatch's default wheel packager skips non-.py files inside the package —
+# the YAML corpora and targets.yaml must be explicitly included or a wheel
+# install loses them and the runner fails at import time.
+"src/wafeval/targets.yaml" = "wafeval/targets.yaml"
+"src/wafeval/payloads/sqli.yaml" = "wafeval/payloads/sqli.yaml"
+"src/wafeval/payloads/xss.yaml"  = "wafeval/payloads/xss.yaml"
+"src/wafeval/payloads/cmdi.yaml" = "wafeval/payloads/cmdi.yaml"
+"src/wafeval/payloads/lfi.yaml"  = "wafeval/payloads/lfi.yaml"
+"src/wafeval/payloads/ssti.yaml" = "wafeval/payloads/ssti.yaml"
+"src/wafeval/payloads/xxe.yaml"  = "wafeval/payloads/xxe.yaml"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+filterwarnings = ["error"]
+
+[tool.wafeval]
+# Runtime defaults. Override per-invocation on the CLI or via env.
+default_concurrency = 10
+default_timeout_s = 15

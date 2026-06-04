@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# with-nix-libs — run a command with libstdc++ + zlib on LD_LIBRARY_PATH
+# when we're on NixOS, so the engine venv's numpy/pandas C extensions
+# resolve their dependencies.
+#
+# No-op on systems without nix-build. Idempotent: re-entering the wrapper
+# just execs through (guarded by WAFLAB_WITH_NIX_LIBS=1).
+#
+# Used by:
+#   - Makefile host-venv targets (test-engine, run-host, report-host, …)
+#   - tests/_lib.sh (delegates here instead of duplicating the incantation)
+#
+# Usage:
+#   scripts/with-nix-libs engine/.venv/bin/python -m wafeval report --run-id …
+set -euo pipefail
+
+if [[ -n "${WAFLAB_WITH_NIX_LIBS:-}" ]] || ! command -v nix-build >/dev/null 2>&1; then
+  exec "$@"
+fi
+
+export WAFLAB_WITH_NIX_LIBS=1
+
+# Shell-quote each argument so the command round-trips through ``nix-shell
+# --run`` with arbitrary payloads (spaces, quotes, glob chars).
+quoted=""
+for arg in "$@"; do
+  quoted+=" $(printf '%q' "$arg")"
+done
+
+exec nix-shell -p stdenv.cc.cc.lib zlib --run \
+  "LD_LIBRARY_PATH=\$(nix-build --no-out-link '<nixpkgs>' -A stdenv.cc.cc.lib)/lib:\$(nix-build --no-out-link '<nixpkgs>' -A zlib)/lib:\${LD_LIBRARY_PATH:-}$quoted"

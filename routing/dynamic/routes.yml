@@ -1,0 +1,75 @@
+# ==============================================================================
+# Dynamic routing — hostname → (WAF or baseline) → target.
+#
+# Routes for services gated by `--profile paranoia-high` / `--profile ml` are
+# always declared here; Traefik will return 503 for them when those profiles
+# aren't active (backends unresolvable) which is the expected behavior.
+# ==============================================================================
+http:
+  routers:
+    # ---- baselines (no WAF, direct to target) -------------------------------
+    baseline-dvwa:      { rule: "Host(`baseline-dvwa.local`)",      entryPoints: [web], service: target-dvwa }
+    baseline-webgoat:   { rule: "Host(`baseline-webgoat.local`)",   entryPoints: [web], service: target-webgoat }
+    baseline-juiceshop: { rule: "Host(`baseline-juiceshop.local`)", entryPoints: [web], service: target-juiceshop }
+
+    # ---- ModSecurity × 3 targets ---------------------------------------------
+    modsec-dvwa:      { rule: "Host(`modsec-dvwa.local`)",      entryPoints: [web], service: modsec-dvwa }
+    modsec-webgoat:   { rule: "Host(`modsec-webgoat.local`)",   entryPoints: [web], service: modsec-webgoat }
+    modsec-juiceshop: { rule: "Host(`modsec-juiceshop.local`)", entryPoints: [web], service: modsec-juiceshop }
+
+    # ---- Coraza × 3 targets -------------------------------------------------
+    coraza-dvwa:      { rule: "Host(`coraza-dvwa.local`)",      entryPoints: [web], service: coraza-dvwa }
+    coraza-webgoat:   { rule: "Host(`coraza-webgoat.local`)",   entryPoints: [web], service: coraza-webgoat }
+    coraza-juiceshop: { rule: "Host(`coraza-juiceshop.local`)", entryPoints: [web], service: coraza-juiceshop }
+
+    # ---- Shadow Daemon × 3 targets ------------------------------------------
+    shadowd-dvwa:      { rule: "Host(`shadowd-dvwa.local`)",      entryPoints: [web], service: shadowd-dvwa }
+    shadowd-webgoat:   { rule: "Host(`shadowd-webgoat.local`)",   entryPoints: [web], service: shadowd-webgoat }
+    shadowd-juiceshop: { rule: "Host(`shadowd-juiceshop.local`)", entryPoints: [web], service: shadowd-juiceshop }
+
+    # ---- paranoia-high variants (profile: paranoia-high) --------------------
+    modsec-ph-dvwa:      { rule: "Host(`modsec-ph-dvwa.local`)",      entryPoints: [web], service: modsec-ph-dvwa }
+    modsec-ph-webgoat:   { rule: "Host(`modsec-ph-webgoat.local`)",   entryPoints: [web], service: modsec-ph-webgoat }
+    modsec-ph-juiceshop: { rule: "Host(`modsec-ph-juiceshop.local`)", entryPoints: [web], service: modsec-ph-juiceshop }
+    coraza-ph-dvwa:      { rule: "Host(`coraza-ph-dvwa.local`)",      entryPoints: [web], service: coraza-ph-dvwa }
+    coraza-ph-webgoat:   { rule: "Host(`coraza-ph-webgoat.local`)",   entryPoints: [web], service: coraza-ph-webgoat }
+    coraza-ph-juiceshop: { rule: "Host(`coraza-ph-juiceshop.local`)", entryPoints: [web], service: coraza-ph-juiceshop }
+
+    # ---- open-appsec ML agent (profile: ml) — all 3 hosts share the
+    # single ``openappsec`` container; per-target routing happens inside
+    # the agent's nginx via Host-header-matched server blocks.
+    openappsec-dvwa:      { rule: "Host(`openappsec-dvwa.local`)",      entryPoints: [web], service: openappsec }
+    openappsec-webgoat:   { rule: "Host(`openappsec-webgoat.local`)",   entryPoints: [web], service: openappsec }
+    openappsec-juiceshop: { rule: "Host(`openappsec-juiceshop.local`)", entryPoints: [web], service: openappsec }
+
+  services:
+    # ---- direct-to-target (baseline) backends -------------------------------
+    target-dvwa:      { loadBalancer: { servers: [{ url: "http://dvwa:80" }] } }
+    target-webgoat:   { loadBalancer: { servers: [{ url: "http://webgoat:8080" }] } }
+    target-juiceshop: { loadBalancer: { servers: [{ url: "http://juiceshop:3000" }] } }
+
+    # ---- ModSecurity front-ends ---------------------------------------------
+    modsec-dvwa:      { loadBalancer: { servers: [{ url: "http://modsec-dvwa:8080" }] } }
+    modsec-webgoat:   { loadBalancer: { servers: [{ url: "http://modsec-webgoat:8080" }] } }
+    modsec-juiceshop: { loadBalancer: { servers: [{ url: "http://modsec-juiceshop:8080" }] } }
+
+    # ---- Coraza front-ends --------------------------------------------------
+    coraza-dvwa:      { loadBalancer: { servers: [{ url: "http://coraza-dvwa:80" }] } }
+    coraza-webgoat:   { loadBalancer: { servers: [{ url: "http://coraza-webgoat:80" }] } }
+    coraza-juiceshop: { loadBalancer: { servers: [{ url: "http://coraza-juiceshop:80" }] } }
+
+    # ---- Shadow Daemon front-ends ------------------------------------------
+    shadowd-dvwa:      { loadBalancer: { servers: [{ url: "http://shadowd-dvwa:80" }] } }
+    shadowd-webgoat:   { loadBalancer: { servers: [{ url: "http://shadowd-webgoat:80" }] } }
+    shadowd-juiceshop: { loadBalancer: { servers: [{ url: "http://shadowd-juiceshop:80" }] } }
+
+    # ---- paranoia-high front-ends ------------------------------------------
+    modsec-ph-dvwa:      { loadBalancer: { servers: [{ url: "http://modsec-ph-dvwa:8080" }] } }
+    modsec-ph-webgoat:   { loadBalancer: { servers: [{ url: "http://modsec-ph-webgoat:8080" }] } }
+    modsec-ph-juiceshop: { loadBalancer: { servers: [{ url: "http://modsec-ph-juiceshop:8080" }] } }
+    coraza-ph-dvwa:      { loadBalancer: { servers: [{ url: "http://coraza-ph-dvwa:80" }] } }
+    coraza-ph-webgoat:   { loadBalancer: { servers: [{ url: "http://coraza-ph-webgoat:80" }] } }
+    coraza-ph-juiceshop: { loadBalancer: { servers: [{ url: "http://coraza-ph-juiceshop:80" }] } }
+
+    # ---- open-appsec front-end (single container for all 3 Hosts) ----------
+    openappsec: { loadBalancer: { servers: [{ url: "http://openappsec:80" }] } }
